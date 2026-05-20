@@ -30,13 +30,13 @@ export default function NavBar() {
       </ul>
       <div className=" font-dm flex items-center gap-3">
         <a
-          href="#"
+          href="/login"
           className="text-sm text-ink-soft px-4 py-2 rounded-lg hover:bg-cream-deep transition-colors duration-200 no-underline"
         >
           Sign in
         </a>
         <a
-          href="#"
+          href="/signup-page"
           className="text-sm font-medium font-dm text-white bg-sienna px-5 py-2.25 rounded-lg hover:opacity-90 hover:-translate-y-px transition-all duration-200 no-underline"
         >
           Get started

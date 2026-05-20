@@ -109,7 +109,7 @@ const getBooks = async () => {
           console.log("Sucess");
         })
         .catch((error) => {
-          console.error("hiii", error);
+          console.error("Error", error);
           //  res.send("Error saving form data to the database");
         });
     }
@@ -121,7 +121,7 @@ const getBooks = async () => {
     }
   }
 };
-getBooks();
+// getBooks();
 function normalize(str) {
   return str
     ?.toLowerCase()
@@ -210,7 +210,7 @@ async function fetchBook(title, author) {
 //   try {
 //     // using async-await to get the data from the URL
 //     const response = await axios.get(
-//       "https://www.googleapis.com/books/v1/volumes?q=subject:fiction&orderBy=newest&maxResults=10&key=AIzaSyDe8Rz-e1Rc6OM4GUTFdQBhhEZ1sX2dz8w"
+//       "https://www.googleapis.com/books/v1/volumes?q=subject:fiction&orderBy=newest&maxResults=10&key="
 //     );
 //     console.log(response);
 //     for (let i = 0; i < response.items.length; i++) {
@@ -344,7 +344,7 @@ app.get("/getbooksbygenre", async (req, res) => {
   const { genre } = req.query;
   try {
     const books = await Book.find({ genre: genre });
-    console.log("Books by Genre", books, genre);
+
     res.send(books);
   } catch (error) {
     res.status(500).send(error);

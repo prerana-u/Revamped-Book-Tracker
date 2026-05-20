@@ -73,7 +73,7 @@ const features: Feature[] = [
 ];
 
 export const Features: React.FC = () => (
-  <section className="py-24 px-8 lg:px-16 bg-cream mx-auto">
+  <section className="py-12 px-8 lg:px-16 bg-cream mx-auto">
     <span className="text-[0.75rem] font-dm uppercase tracking-widest font-medium text-sienna mb-4 block">
       Features
     </span>
