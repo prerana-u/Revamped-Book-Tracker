@@ -465,7 +465,7 @@ export default function SignupPage() {
           </form>
 
           {/* Terms note */}
-          <p className="mt-5 text-center text-[0.78rem] font-dm text-ink/35 leading-relaxed">
+          {/* <p className="mt-5 text-center text-[0.78rem] font-dm text-ink/35 leading-relaxed">
             By creating an account, you agree to our{" "}
             <Link
               to="/terms"
@@ -481,7 +481,7 @@ export default function SignupPage() {
               Privacy Policy
             </Link>
             .
-          </p>
+          </p> */}
 
           {/* Sign in link */}
           <p className="mt-6 text-center text-[0.875rem] font-dm text-ink/50">

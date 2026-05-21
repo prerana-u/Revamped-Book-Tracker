@@ -164,4 +164,7 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #B5512B; /* Thumb hover background */
 }
-
+input:-internal-autofill-selected{
+  background-color: white !important;
+  color:#08060d !important;
+}

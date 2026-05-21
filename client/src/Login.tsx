@@ -314,7 +314,7 @@ export default function LoginPage() {
           <p className="mt-8 text-center text-[0.875rem] font-dm text-ink/50">
             Don't have an account?{" "}
             <Link
-              to="/signup"
+              to="/signup-page"
               className="text-sienna font-medium hover:underline transition-all"
             >
               Create one
