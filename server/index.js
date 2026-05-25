@@ -105,7 +105,7 @@ const getBooks = async () => {
   try {
     // using async-await to get the data from the URL
     const response = await axios.get(
-      "https://hapi-books.p.rapidapi.com/nominees/nonfiction/2025",
+      "https://hapi-books.p.rapidapi.com/nominees/romance/2024",
       {
         headers: {
           "X-RapidAPI-Key": hapibooksapiKey,
@@ -120,7 +120,7 @@ const getBooks = async () => {
         cover: response.data[i]["cover"],
         bookid: response.data[i]["book_id"],
         author: response.data[i]["author"],
-        genre: "Non Fiction",
+        genre: "Romance",
       });
       post
         .save()
@@ -192,7 +192,7 @@ async function fetchBook(title, author) {
       query,
     )}&langRestrict=en&printType=books&maxResults=5&key=${apiKey}`,
   );
-  console.log(title, " Fetched from Google Books API");
+
   const items = response.data.items || [];
 
   const validItems = items.filter(

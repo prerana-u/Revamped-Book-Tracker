@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "../../../lib/axios-instance";
 import NavBar from "../../common_components/Navbar";
 import { useAuth } from "../../../context/useAuth";
+import BookCarousel from "../../common_components/BookCarousel";
 
 /* ─── Types ─────────────────────────────────────────────────── */
 interface BookData {
@@ -218,12 +219,12 @@ export default function UserDashboard() {
     {
       key: "reading" as const,
       label: "Currently Reading",
-      //   count: yourBookData.currently_reading?.length,
+      count: yourBookData.data?.currently_reading?.length,
     },
     {
       key: "want" as const,
       label: "Want to Read",
-      //   count: yourBookData.want_to_read?.length,
+      count: yourBookData.data?.want_to_read?.length,
     },
     { key: "recs" as const, label: "For You", count: null },
   ];
@@ -360,11 +361,11 @@ export default function UserDashboard() {
                   <div className="flex flex-col justify-between min-w-0 flex-1 py-0.5">
                     <div>
                       <p className="font-lora font-medium text-[1rem] text-ink leading-snug line-clamp-2">
-                        {book.title}
+                        {book.name}
                       </p>
-                      {/* <p className="mt-1 text-[0.78rem] font-dm text-ink/45">
+                      <p className="mt-1 text-[0.78rem] font-dm text-ink/45">
                         {book.author}
-                      </p> */}
+                      </p>
                     </div>
 
                     <div className="mt-3">
@@ -407,44 +408,38 @@ export default function UserDashboard() {
                 ].join(" ")}
               >
                 {tab.label}
-                {/* {tab.count !== null && tab.count > 0 && (
-                //   <span
-                //     className={[
-                //       "ml-2 px-2 py-0.5 rounded-full text-[0.68rem] font-medium transition-colors",
-                //       activeTab === tab.key
-                //         ? "bg-sienna/10 text-sienna"
-                //         : "bg-ink/6 text-ink/35",
-                //     ].join(" ")}
-                //   >
-                //     {tab.count}
-                //   </span> */}
+                {tab.count !== null && tab.count > 0 && (
+                  <span
+                    className={[
+                      "ml-2 px-2 py-0.5 rounded-full text-[0.68rem] font-medium transition-colors",
+                      activeTab === tab.key
+                        ? "bg-sienna/10 text-sienna"
+                        : "bg-ink/6 text-ink/35",
+                    ].join(" ")}
+                  >
+                    {tab.count}
+                  </span>
+                )}
               </button>
             ))}
           </div>
 
           {/* Want to Read */}
-          {/* {activeTab === "want" && (
+          {activeTab === "want" && (
             <div>
-              <BookShelf
-                books={wantToRead}
-                isLoading={wantLoading}
-                actionLabel="Remove"
-                actionIcon={
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M3 6h18M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2" />
-                  </svg>
-                }
-                // onAction={(book) => removeBook(book.id)}
+              <BookCarousel
+                books={yourBookData.data?.want_to_read || []}
+                isLoading={readingLoading}
+                isError={false}
+                errorMessage="Failed to load books for this genre."
+                emptyMessage="No books found for this genre."
+                heightClass="h-122"
+                gapClass="gap-x-12"
+                showDots
+                className="mt-8"
               />
             </div>
-          )} */}
+          )}
 
           {/* Recommendations */}
           {activeTab === "recs" && (
@@ -559,9 +554,21 @@ export default function UserDashboard() {
           )}
 
           {/* Currently Reading tab (scrollable shelf version) */}
-          {/* {activeTab === "reading" && (
-            <BookShelf books={currentlyReading} isLoading={readingLoading} />
-          )} */}
+          {activeTab === "reading" && (
+            <>
+              <BookCarousel
+                books={yourBookData.data?.currently_reading || []}
+                isLoading={readingLoading}
+                isError={false}
+                errorMessage="Failed to load books for this genre."
+                emptyMessage="No books found for this genre."
+                heightClass="h-122"
+                gapClass="gap-x-12"
+                showDots
+                className="mt-8"
+              />
+            </>
+          )}
         </section>
 
         {/* ── Favourite genre badge ────────────────────────────── */}

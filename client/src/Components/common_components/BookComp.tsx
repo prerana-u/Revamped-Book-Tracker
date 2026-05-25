@@ -2,7 +2,7 @@
 import pages from "../../assets/png/pages.png";
 // import book_base from "../Resources/Images/book_base.png";
 import axios from "axios";
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import horrorIcon from "../../assets/png/horrorIcon.png";
 import romanceIcon from "../../assets/png/romanceIcon.png";
 import fantasyIcon from "../../assets/png/fantasyIcon.png";
@@ -36,7 +36,7 @@ export default function BookComp({
   const [data, setData] = useState([]);
   const [desc, setDesc] = useState("");
   const [author1, setAuthor] = useState("");
-  const [, setThumbnail] = useState("");
+  const [thumbnail, setThumbnail] = useState("");
   const [hovered, setHovered] = useState(false);
   const genreIcons: Record<string, string> = {
     horror: horrorIcon,
@@ -90,6 +90,12 @@ export default function BookComp({
 
     void fetchbookddata();
   }, [name, author]);
+
+  useEffect(() => {
+    if (thumbnail) {
+      console.log(thumbnail);
+    }
+  }, [thumbnail]);
   return (
     <div
       className="relative w-50 h-auto mx-auto cursor-pointer bg-transparent font-lora"
@@ -106,7 +112,7 @@ export default function BookComp({
           id={id}
         >
           <img
-            src={cover}
+            src={cover ? cover : thumbnail}
             id="coverimg"
             alt={name ? `Cover of ${name}` : "Book cover"}
             className="absolute z-20 md:w-48 md:h-68 md:left-3 left-9 w-50 h-62.5"
@@ -140,20 +146,22 @@ export default function BookComp({
             >
               {author1}
             </p>
-            <div className="flex justify-center items-center mt-2">
-              <img
-                src={genreIcons[genre.toLowerCase()]}
-                alt="genreIcon"
-                width={20}
-                height={20}
-              />
-              <p
-                id="genre"
-                className="text-[16px] font-bold text-center  text-ink-muted ms-1"
-              >
-                {genre}
-              </p>
-            </div>
+            {genre && (
+              <div className="flex justify-center items-center mt-2">
+                <img
+                  src={genreIcons[genre.toLowerCase()]}
+                  alt="genreIcon"
+                  width={20}
+                  height={20}
+                />
+                <p
+                  id="genre"
+                  className="text-[16px] font-bold text-center  text-ink-muted ms-1"
+                >
+                  {genre}
+                </p>
+              </div>
+            )}
 
             <div className="scrollable-div text-sm text-black text-justify p-5">
               <div className="md:w-70 xl:w-60 w-55 overflow-y-auto overflow-x-hidden h-25 pr-4">
