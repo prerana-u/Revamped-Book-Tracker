@@ -81,6 +81,26 @@ const userSchema = new mongoose.Schema({
 userSchema.index({ username: 1 }, { unique: true });
 const User = mongoose.model("User", userSchema);
 
+const userBookSchema = new mongoose.Schema({
+  user_id: String,
+  currently_reading: [
+    {
+      title: String,
+      id: String,
+      updated_at: Date,
+    },
+  ],
+  want_to_read: [
+    {
+      title: String,
+      id: String,
+      updated_at: Date,
+    },
+  ],
+});
+
+userBookSchema.index({ user_id: 1 }, { unique: true });
+const UserBook = mongoose.model("UserBookData", userBookSchema, "userBookData");
 const getBooks = async () => {
   try {
     // using async-await to get the data from the URL
@@ -272,9 +292,41 @@ const loginUser = async (req, res) => {
       { expiresIn: "1h" },
     );
     // const token = user._id + user.username;
-    res.json({ message: "Login successful", token });
+    res.json({
+      message: "Login successful",
+      token,
+      user: { id: user._id, username: user.username },
+    });
   } catch (err) {
     res.status(500).json({ error: "Login failed", details: err.message });
+  }
+};
+
+const getUserBookLists = async (req, res) => {
+  const { userId } = req.params;
+  const cleanUserId = String(userId).trim();
+  console.log(mongoose.connection.name, "connection name");
+  try {
+    const userBooks = await UserBook.findOne({ user_id: cleanUserId });
+    console.log("User Books for userId", cleanUserId, ":", userBooks);
+    if (!userBooks) {
+      return res
+        .status(404)
+        .json({ error: "No book lists found for this user" });
+    }
+
+    res.json({
+      message: "User book lists retrieved successfully",
+      data: {
+        currently_reading: userBooks.currently_reading,
+        want_to_read: userBooks.want_to_read,
+      },
+    });
+  } catch (err) {
+    console.error("Failed to fetch user books:", err);
+    res
+      .status(500)
+      .json({ error: "Failed to fetch user books", details: err.message });
   }
 };
 
@@ -379,6 +431,7 @@ app.get("/getbookdata", async (req, res) => {
 
 app.post("/create-user", insertUser);
 app.post("/login", loginUser);
+app.get("/user-books/:userId", getUserBookLists);
 
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);

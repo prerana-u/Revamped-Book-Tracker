@@ -4,7 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { api } from "./lib/axios-instance";
 import { Link, useNavigate } from "react-router-dom";
 import BookIcon from "./assets/Icons/BookIcon";
-
+import { useAuth } from "./context/useAuth";
 interface LoginPayload {
   username: string;
   password: string;
@@ -29,6 +29,8 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+
+  const { login } = useAuth();
   const [fieldErrors, setFieldErrors] = useState<{
     username?: string;
     password?: string;
@@ -40,10 +42,11 @@ export default function LoginPage() {
     LoginPayload
   >({
     mutationFn: loginUser,
+
     onSuccess: (data) => {
-      // Store token however your app handles auth (localStorage, context, etc.)
-      localStorage.setItem("token", data.token);
-      navigate("/home");
+      login(data.token, data.user);
+
+      navigate("/dashboard");
     },
   });
 
@@ -98,7 +101,7 @@ export default function LoginPage() {
 
         {/* Quote */}
         <div className="relative z-10">
-          <div className="w-10 h-[2px] bg-sienna mb-8" />
+          <div className="w-10 h-0.5 bg-sienna mb-8" />
           <blockquote className="font-lora text-[clamp(1.5rem,2.5vw,2.2rem)] leading-[1.3] text-white/90 font-medium tracking-tight max-w-sm">
             "A reader lives a thousand lives before he dies."
           </blockquote>
@@ -113,7 +116,7 @@ export default function LoginPage() {
               "Discover your next favourite book",
             ].map((text) => (
               <div key={text} className="flex items-center gap-3">
-                <div className="w-1.5 h-1.5 rounded-full bg-sienna flex-shrink-0" />
+                <div className="w-1.5 h-1.5 rounded-full bg-sienna shrink-0" />
                 <span className="text-white/60 text-[0.875rem] font-dm">
                   {text}
                 </span>
