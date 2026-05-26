@@ -20,6 +20,7 @@ interface UserBookData {
   data: {
     currently_reading: any[];
     want_to_read: any[];
+    books_read: any[];
   };
 }
 
@@ -185,9 +186,9 @@ function Skeleton({ className }: { className?: string }) {
 /* ─── Main Dashboard ────────────────────────────────────────── */
 export default function UserDashboard() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<"reading" | "want" | "recs">(
-    "reading",
-  );
+  const [activeTab, setActiveTab] = useState<
+    "reading" | "want" | "recs" | "read"
+  >("want");
 
   const fetchCurrentlyReading = (): Promise<UserBookData> =>
     api.get(`/user-books/${user.id}`).then((r) => r.data);
@@ -216,15 +217,20 @@ export default function UserDashboard() {
   //
 
   const tabs = [
-    {
-      key: "reading" as const,
-      label: "Currently Reading",
-      count: yourBookData.data?.currently_reading?.length,
-    },
+    // {
+    //   key: "reading" as const,
+    //   label: "Currently Reading",
+    //   count: yourBookData.data?.currently_reading?.length,
+    // },
     {
       key: "want" as const,
       label: "Want to Read",
       count: yourBookData.data?.want_to_read?.length,
+    },
+    {
+      key: "read" as const,
+      label: "Books Read",
+      count: yourBookData.data?.books_read?.length,
     },
     { key: "recs" as const, label: "For You", count: null },
   ];
@@ -251,7 +257,7 @@ export default function UserDashboard() {
               Your library
             </span> */}
             <h1 className="font-lora font-medium text-[clamp(1.8rem,3vw,2.6rem)] text-white leading-tight tracking-tight">
-              Good morning, {user.username || "reader"}!
+              Welcome, {user.username || "reader"}!
             </h1>
             <p className="mt-1.5 text-white/40 font-dm text-[0.9rem]">
               {yourBookData.data?.currently_reading?.length > 0
@@ -262,7 +268,7 @@ export default function UserDashboard() {
 
           {/* Stats row */}
           <div className="flex gap-6 sm:gap-8">
-            {statsLoading
+            {readingLoading
               ? Array.from({ length: 3 }).map((_, i) => (
                   <div key={i} className="flex flex-col gap-1.5">
                     <Skeleton className="w-12 h-6" />
@@ -270,7 +276,10 @@ export default function UserDashboard() {
                   </div>
                 ))
               : [
-                  { value: stats?.booksRead ?? 0, label: "Books read" },
+                  {
+                    value: yourBookData.data.books_read?.length ?? 0,
+                    label: "Books read",
+                  },
                   { value: stats?.currentStreak ?? 0, label: "Day streak" },
                   { value: stats?.pagesRead ?? 0, label: "Pages read" },
                 ].map(({ value, label }) => (
@@ -337,11 +346,11 @@ export default function UserDashboard() {
                 >
                   {/* Cover */}
                   <div className="relative shrink-0">
-                    {/* <img
+                    <img
                       src={book.cover}
                       alt={book.name}
                       className="w-20 h-28 object-cover rounded-xl shadow-md group-hover:shadow-lg transition-shadow duration-300"
-                    /> */}
+                    />
                     {/* Progress overlay ring */}
                     <div className="absolute -bottom-2 -right-2 bg-cream-deep rounded-full p-0.5 shadow">
                       <div className="relative flex items-center justify-center">
@@ -381,7 +390,7 @@ export default function UserDashboard() {
                           p. {book.currentPage} of {book.totalPages}
                         </span> */}
                         <button className="text-[0.72rem] font-dm font-medium text-sienna hover:underline">
-                          Continue →
+                          Update Progress →
                         </button>
                       </div>
                     </div>
@@ -401,7 +410,7 @@ export default function UserDashboard() {
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
                 className={[
-                  "relative px-5 py-3 text-[0.875rem] font-dm font-medium transition-all duration-200 whitespace-nowrap",
+                  "relative px-5 py-3 text-[0.875rem] font-dm font-medium transition-all duration-200 whitespace-nowrap cursor-pointer ",
                   activeTab === tab.key
                     ? "text-ink after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-sienna after:rounded-full"
                     : "text-ink/40 hover:text-ink/70",
@@ -429,6 +438,22 @@ export default function UserDashboard() {
             <div>
               <BookCarousel
                 books={yourBookData.data?.want_to_read || []}
+                isLoading={readingLoading}
+                isError={false}
+                errorMessage="Failed to load books for this genre."
+                emptyMessage="No books found for this genre."
+                heightClass="h-122"
+                gapClass="gap-x-12"
+                showDots
+                className="mt-8"
+              />
+            </div>
+          )}
+
+          {activeTab === "read" && (
+            <div>
+              <BookCarousel
+                books={yourBookData.data?.books_read || []}
                 isLoading={readingLoading}
                 isError={false}
                 errorMessage="Failed to load books for this genre."
@@ -554,7 +579,7 @@ export default function UserDashboard() {
           )}
 
           {/* Currently Reading tab (scrollable shelf version) */}
-          {activeTab === "reading" && (
+          {/* {activeTab === "reading" && (
             <>
               <BookCarousel
                 books={yourBookData.data?.currently_reading || []}
@@ -568,7 +593,7 @@ export default function UserDashboard() {
                 className="mt-8"
               />
             </>
-          )}
+          )} */}
         </section>
 
         {/* ── Favourite genre badge ────────────────────────────── */}

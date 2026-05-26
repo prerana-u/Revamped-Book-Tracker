@@ -88,6 +88,7 @@ const userBookSchema = new mongoose.Schema({
       title: String,
       id: String,
       updated_at: Date,
+      author: String,
     },
   ],
   want_to_read: [
@@ -95,6 +96,15 @@ const userBookSchema = new mongoose.Schema({
       title: String,
       id: String,
       updated_at: Date,
+      author: String,
+    },
+  ],
+  books_read: [
+    {
+      title: String,
+      id: String,
+      updated_at: Date,
+      author: String,
     },
   ],
 });
@@ -305,10 +315,10 @@ const loginUser = async (req, res) => {
 const getUserBookLists = async (req, res) => {
   const { userId } = req.params;
   const cleanUserId = String(userId).trim();
-  console.log(mongoose.connection.name, "connection name");
+  //console.log(mongoose.connection.name, "connection name");
   try {
     const userBooks = await UserBook.findOne({ user_id: cleanUserId });
-    console.log("User Books for userId", cleanUserId, ":", userBooks);
+    // console.log("User Books for userId", cleanUserId, ":", userBooks);
     if (!userBooks) {
       return res
         .status(404)
@@ -320,6 +330,7 @@ const getUserBookLists = async (req, res) => {
       data: {
         currently_reading: userBooks.currently_reading,
         want_to_read: userBooks.want_to_read,
+        books_read: userBooks.books_read || [],
       },
     });
   } catch (err) {
