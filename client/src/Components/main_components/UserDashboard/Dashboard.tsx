@@ -1,14 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../../lib/axios-instance";
 import NavBar from "../../common_components/Navbar";
 import { useAuth } from "../../../context/useAuth";
 import BookCarousel from "../../common_components/BookCarousel";
+import axios from "axios";
 
 /* ─── Types ─────────────────────────────────────────────────── */
 interface BookData {
-  id: string;
+  bookid: string;
   name: string;
   cover: string;
   genre: string;
@@ -186,6 +187,8 @@ function Skeleton({ className }: { className?: string }) {
 /* ─── Main Dashboard ────────────────────────────────────────── */
 export default function UserDashboard() {
   const { user } = useAuth();
+
+  const [coverMap, setCoverMap] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState<
     "reading" | "want" | "recs" | "read"
   >("want");
@@ -214,7 +217,60 @@ export default function UserDashboard() {
     queryFn: fetchRecommendations,
   });
 
-  //
+  const fetchCoverForBook = async (title: string, author?: string) => {
+    const res = await axios.get("http://localhost:3001/getbookdata", {
+      params: {
+        title,
+        ...(author && { author }),
+      },
+    });
+    return res.data.thumbnail;
+  };
+
+  useEffect(() => {
+    const books = yourBookData.data?.currently_reading || [];
+    const missingCoverBooks = books.filter(
+      (book: any) => !book.cover || book.cover === "",
+    );
+    if (!missingCoverBooks.length) return;
+
+    let isMounted = true;
+
+    const loadCovers = async () => {
+      const coverEntries = await Promise.all(
+        missingCoverBooks.map(async (book: any) => {
+          const title = book.title ?? book.name;
+          try {
+            const thumbnail = await fetchCoverForBook(title, book.author);
+            if (thumbnail) {
+              return [book.bookid, thumbnail] as const;
+            }
+          } catch (err) {
+            console.error("Failed to fetch cover for", title, err);
+          }
+          return null;
+        }),
+      );
+
+      if (!isMounted) return;
+
+      const newCoverMap = coverEntries.reduce(
+        (acc, entry) => {
+          if (entry) acc[entry[0]] = entry[1];
+          return acc;
+        },
+        {} as Record<string, string>,
+      );
+
+      setCoverMap((prev) => ({ ...prev, ...newCoverMap }));
+    };
+
+    loadCovers();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [yourBookData.data?.currently_reading]);
 
   const tabs = [
     // {
@@ -341,13 +397,17 @@ export default function UserDashboard() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {yourBookData.data?.currently_reading?.map((book) => (
                 <div
-                  key={book.id}
+                  key={book.bookid}
                   className="group rounded-2xl border border-ink/8 bg-white/70 hover:bg-white hover:shadow-xl hover:shadow-ink/6 transition-all duration-300 p-5 flex gap-4 cursor-pointer"
                 >
                   {/* Cover */}
                   <div className="relative shrink-0">
                     <img
-                      src={book.cover}
+                      src={
+                        coverMap[book.bookid] ??
+                        book.cover ??
+                        "https://via.placeholder.com/150x220?text=No+Cover"
+                      }
                       alt={book.name}
                       className="w-20 h-28 object-cover rounded-xl shadow-md group-hover:shadow-lg transition-shadow duration-300"
                     />
@@ -534,7 +594,7 @@ export default function UserDashboard() {
                     <div className="lg:col-span-3 flex flex-col gap-3">
                       {recommendations.slice(1).map((book) => (
                         <div
-                          key={book.id}
+                          key={book.bookid}
                           className="group rounded-xl border border-ink/8 bg-white/60 hover:bg-white hover:shadow-md hover:shadow-ink/5 transition-all duration-200 px-4 py-3 flex items-center gap-4 cursor-pointer"
                         >
                           <img

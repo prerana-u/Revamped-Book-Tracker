@@ -183,7 +183,7 @@ async function fetchBook(title, author) {
 
   const existingBook = await CachedBook.findOne(dbQuery);
   if (existingBook) {
-    console.log("Found From Cache");
+    console.log(title, "Found From Cache");
     return existingBook;
   }
 
@@ -305,11 +305,31 @@ const loginUser = async (req, res) => {
     res.json({
       message: "Login successful",
       token,
+      expiresIn: "1h",
       user: { id: user._id, username: user.username },
     });
   } catch (err) {
     res.status(500).json({ error: "Login failed", details: err.message });
   }
+};
+
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+
+  if (!token) {
+    return res.status(401).json({ error: "Access denied. No token provided" });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err) {
+      return res
+        .status(401)
+        .json({ error: "Invalid or expired token", details: err.message });
+    }
+    req.user = decoded;
+    next();
+  });
 };
 
 const getUserBookLists = async (req, res) => {
