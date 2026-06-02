@@ -34,7 +34,13 @@ export default function NavBar() {
         {navLinks.map((link) => (
           <li key={link}>
             <a
-              href="#"
+              href={
+                link === "Discover"
+                  ? "/discover"
+                  : link === "Shelves"
+                    ? "/dashboard"
+                    : "#"
+              }
               className="text-sm text-ink-soft no-underline font-normal hover:text-ink transition-colors duration-200"
             >
               {link}

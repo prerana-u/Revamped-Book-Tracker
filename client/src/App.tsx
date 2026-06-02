@@ -8,6 +8,7 @@ import Login from "./Login";
 import SignupPage from "./Signup";
 import Dashboard from "./Components/main_components/UserDashboard/Dashboard";
 import { useAuth } from "./context/useAuth";
+import DiscoverPage from "./Components/main_components/DiscoverPage/DiscoverPage";
 
 function App() {
   return (
@@ -22,6 +23,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/discover"
+          element={
+            <ProtectedRoute>
+              <DiscoverPage />
             </ProtectedRoute>
           }
         />

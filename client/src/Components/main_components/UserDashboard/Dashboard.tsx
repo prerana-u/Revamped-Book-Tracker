@@ -17,6 +17,7 @@ interface BookData {
 }
 
 interface UserBookData {
+  error: string | null;
   message: string;
   data: {
     currently_reading: any[];
@@ -98,92 +99,6 @@ function Skeleton({ className }: { className?: string }) {
   );
 }
 
-/** Horizontal scrollable book row */
-// function BookShelf({
-//   books,
-//   isLoading,
-//   onAction,
-//   actionLabel,
-//   actionIcon,
-// }: {
-//   books: BookData[];
-//   isLoading: boolean;
-//   onAction?: (book: BookData) => void;
-//   actionLabel?: string;
-//   actionIcon?: React.ReactNode;
-// }) {
-//   if (isLoading) {
-//     return (
-//       <div className="flex gap-6 pb-3 overflow-x-auto scrollbar-none">
-//         {Array.from({ length: 4 }).map((_, i) => (
-//           <div key={i} className="shrink-0 w-36 flex flex-col gap-2">
-//             <Skeleton className="w-36 h-52" />
-//             <Skeleton className="w-28 h-3" />
-//             <Skeleton className="w-20 h-2.5" />
-//           </div>
-//         ))}
-//       </div>
-//     );
-//   }
-
-//   if (!books.length) {
-//     return (
-//       <div className="flex flex-col items-center justify-center py-10 text-ink/30 gap-2">
-//         <svg
-//           width="36"
-//           height="36"
-//           viewBox="0 0 24 24"
-//           fill="none"
-//           stroke="currentColor"
-//           strokeWidth="1.5"
-//         >
-//           <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-//           <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-//         </svg>
-//         <span className="text-[0.85rem] font-dm">No books here yet</span>
-//       </div>
-//     );
-//   }
-
-//   return (
-//     <div className="flex gap-5 pb-3 overflow-x-auto scrollbar-none">
-//       {books.map((book) => (
-//         <div
-//           key={book.id}
-//           className="shrink-0 w-36 group relative flex flex-col gap-2"
-//         >
-//           <div className="relative overflow-hidden rounded-xl shadow-md">
-//             <img
-//               src={book.cover}
-//               alt={book.name}
-//               className="w-36 h-52 object-cover transition-transform duration-300 group-hover:scale-105"
-//             />
-//             {onAction && (
-//               <button
-//                 onClick={() => onAction(book)}
-//                 className="absolute inset-0 bg-ink/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center"
-//               >
-//                 <div className="flex flex-col items-center gap-1.5 text-white">
-//                   {actionIcon}
-//                   <span className="text-[0.72rem] font-dm font-medium">
-//                     {actionLabel}
-//                   </span>
-//                 </div>
-//               </button>
-//             )}
-//           </div>
-//           <p className="text-[0.82rem] font-dm font-medium text-ink leading-tight line-clamp-2">
-//             {book.name}
-//           </p>
-//           <p className="text-[0.75rem] font-dm text-ink/45 leading-tight">
-//             {book.author}
-//           </p>
-//         </div>
-//       ))}
-//     </div>
-//   );
-// }
-
 /* ─── Main Dashboard ────────────────────────────────────────── */
 export default function UserDashboard() {
   const { user } = useAuth();
@@ -201,11 +116,14 @@ export default function UserDashboard() {
     queryFn: fetchUserStats,
   });
 
-  const { data: yourBookData = {} as UserBookData, isLoading: readingLoading } =
-    useQuery({
-      queryKey: ["userBookData"],
-      queryFn: fetchCurrentlyReading,
-    });
+  const {
+    data: yourBookData = {} as UserBookData,
+    isLoading: readingLoading,
+    isError: readingError,
+  } = useQuery({
+    queryKey: ["userBookData"],
+    queryFn: fetchCurrentlyReading,
+  });
 
   //   const { data: wantToRead = [], isLoading: wantLoading } = useQuery({
   //     queryKey: ["wantToRead"],
@@ -224,7 +142,7 @@ export default function UserDashboard() {
         ...(author && { author }),
       },
     });
-    return res.data.thumbnail;
+    return res.data?.thumbnail;
   };
 
   useEffect(() => {
@@ -313,7 +231,7 @@ export default function UserDashboard() {
               Your library
             </span> */}
             <h1 className="font-lora font-medium text-[clamp(1.8rem,3vw,2.6rem)] text-white leading-tight tracking-tight">
-              Welcome, {user.username || "reader"}!
+              Welcome, {user.username || "reader"}!{" "}
             </h1>
             <p className="mt-1.5 text-white/40 font-dm text-[0.9rem]">
               {yourBookData.data?.currently_reading?.length > 0
@@ -333,7 +251,7 @@ export default function UserDashboard() {
                 ))
               : [
                   {
-                    value: yourBookData.data.books_read?.length ?? 0,
+                    value: yourBookData.data?.books_read?.length ?? 0,
                     label: "Books read",
                   },
                   { value: stats?.currentStreak ?? 0, label: "Day streak" },
@@ -373,7 +291,8 @@ export default function UserDashboard() {
                 <Skeleton key={i} className="h-36 rounded-2xl" />
               ))}
             </div>
-          ) : yourBookData.data?.currently_reading?.length === 0 ? (
+          ) : yourBookData.data?.currently_reading?.length === 0 ||
+            readingError ? (
             <div className="rounded-2xl border border-ink/8 bg-white/60 py-12 flex flex-col items-center gap-3 text-ink/30">
               <svg
                 width="40"
@@ -500,8 +419,8 @@ export default function UserDashboard() {
                 books={yourBookData.data?.want_to_read || []}
                 isLoading={readingLoading}
                 isError={false}
-                errorMessage="Failed to load books for this genre."
-                emptyMessage="No books found for this genre."
+                errorMessage="Failed to load books."
+                emptyMessage="No books found."
                 heightClass="h-122"
                 gapClass="gap-x-12"
                 showDots
@@ -516,8 +435,8 @@ export default function UserDashboard() {
                 books={yourBookData.data?.books_read || []}
                 isLoading={readingLoading}
                 isError={false}
-                errorMessage="Failed to load books for this genre."
-                emptyMessage="No books found for this genre."
+                errorMessage="Failed to load books."
+                emptyMessage="No books found."
                 heightClass="h-122"
                 gapClass="gap-x-12"
                 showDots
