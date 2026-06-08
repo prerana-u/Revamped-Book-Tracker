@@ -168,3 +168,16 @@ input:-internal-autofill-selected{
   background-color: white !important;
   color:#08060d !important;
 }
+
+.book-description {
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+
+  &.collapsed {
+    max-height: 18rem; 
+  }
+
+  &.expanded {
+    max-height: 200rem;
+  }
+}

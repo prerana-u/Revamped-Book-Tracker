@@ -106,8 +106,19 @@ async function fetchBook(title, author) {
 
   const existingBook = await CachedBook.findOne(dbQuery);
   if (existingBook) {
-    console.log(title, "Found From Cache");
-    return existingBook;
+    const hasPublishedDate = !!existingBook.publishedDate;
+    const hasPageCount =
+      Number.isInteger(existingBook.pageCount) && existingBook.pageCount > 0;
+
+    if (hasPublishedDate && hasPageCount) {
+      console.log(title, "Found From Cache");
+      return existingBook;
+    }
+
+    console.log(
+      title,
+      "Found From Cache but missing publishedDate or pageCount, fetching from Google Books",
+    );
   }
 
   // Fetch from Google Books
@@ -147,6 +158,10 @@ async function fetchBook(title, author) {
     authors: info.authors || [],
     description: info.description || "",
     thumbnail: info.imageLinks?.thumbnail || "",
+    publishedDate: info.publishedDate || "",
+    pageCount: info.pageCount || 0,
+    publisher: info.publisher || "",
+    averageRating: info.averageRating || 0,
   };
 
   // Save with upsert
@@ -158,6 +173,68 @@ async function fetchBook(title, author) {
   console.log(info.title, " Saved to DB");
   return savedBook;
 }
+
+// Fetch a book by its Google Books volume id. If cached, return cached entry; otherwise fetch from Google and upsert.
+async function fetchBookByGoogleId(googleId) {
+  if (!googleId) return null;
+
+  // Try cache first
+  const existing = await CachedBook.findOne({ googleId });
+  if (existing) {
+    const hasPublishedDate = !!existing.publishedDate;
+    const hasPageCount =
+      Number.isInteger(existing.pageCount) && existing.pageCount > 0;
+
+    if (hasPublishedDate && hasPageCount) {
+      console.log(googleId, "Found From Cache");
+      return existing;
+    }
+
+    console.log(
+      googleId,
+      "Found From Cache but missing publishedDate or pageCount, fetching from Google Books",
+    );
+  }
+
+  try {
+    const response = await axios.get(
+      `${GOOGLE_BOOKS_API}/${encodeURIComponent(googleId)}?key=${apiKey}`,
+    );
+
+    const item = response.data;
+    if (!item || !item.volumeInfo) return null;
+    const info = item.volumeInfo;
+
+    const bookData = {
+      googleId: item.id || googleId,
+      title: info.title || "",
+      authors: info.authors || [],
+      description: info.description || "",
+      thumbnail: info.imageLinks?.thumbnail || "",
+      publishedDate: info.publishedDate || "",
+      pageCount: info.pageCount || 0,
+      publisher: info.publisher || "",
+      averageRating: info.averageRating || 0,
+    };
+
+    const savedBook = await CachedBook.findOneAndUpdate(
+      { googleId: bookData.googleId },
+      { $set: bookData },
+      { new: true, upsert: true, setDefaultsOnInsert: true, strict: false },
+    );
+    console.log(info.title, " Saved to DB");
+    return savedBook;
+  } catch (err) {
+    console.error(
+      "Error fetching from Google Books by id:",
+      err.message || err,
+    );
+    return null;
+  }
+}
+
+// Wrapper that searches cached records by several id forms (googleId, Mongo _id, or bookid).
+// If not found locally, it will attempt to fetch from Google Books using the provided id as a volume id.
 
 // const getNewBooks = async () => {
 //   try {
@@ -396,6 +473,20 @@ app.get("/getbookdata", async (req, res) => {
 
   try {
     const book = await fetchBook(title, author);
+    if (!book) return res.status(404).json({ error: "Book Not Found" });
+
+    res.json(book);
+  } catch (err) {
+    res.status(500).json({ error: "Server error" + err });
+  }
+});
+
+// GET book by id (google volume id, mongo _id, or provider bookid)
+app.get("/getbookbyid", async (req, res) => {
+  const { id } = req.query;
+  if (!id) return res.status(400).json({ error: "Missing id" });
+  try {
+    const book = await fetchBookByGoogleId(id);
     if (!book) return res.status(404).json({ error: "Book Not Found" });
 
     res.json(book);

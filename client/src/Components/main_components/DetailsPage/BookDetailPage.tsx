@@ -1,0 +1,231 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+
+import { ShelfDropdown, type ShelfOption } from "./ShelfDropdown";
+import { StarRating } from "./StarRating";
+import { MetaCard } from "./MetaCard";
+import { GenrePills } from "./GenrePills";
+import { BookDetailsGrid } from "./BookDetailsGrid";
+import { EditionTable } from "./EditionTable";
+import DOMPurify from "dompurify";
+import { api } from "../../../lib/axios-instance";
+import { useParams } from "react-router-dom";
+
+interface BookRow {
+  key: string;
+  value: string;
+}
+
+interface BookDetail {
+  title: string;
+  author: string;
+  rating: number;
+  descriptionShort: string;
+  descriptionFull: string;
+  genres: string[];
+  detailCells: BookRow[];
+  metaRows: BookRow[];
+  editionRows: BookRow[];
+}
+
+interface ApiBookResponse {
+  title?: string;
+  authors?: string[];
+  description?: string;
+  thumbnail?: string;
+  publishedDate?: string;
+  pageCount?: number;
+  publisher?: string;
+  averageRating?: number;
+  [key: string]: any;
+}
+
+const BOOK = {
+  title: "The Shippers",
+  author: "Katherine Center",
+  authorTag: "New York Times Bestselling Author",
+  rating: 3.94,
+  totalRatings: "20,562",
+  totalReviews: "7,467",
+  descriptionShort: `After a whole lifetime of being bad at love, JoJo Burton decides to solve her intimacy issues once and for all at her sister's destination wedding on a cruise ship. Armed with pop psychology, she enlists the help of her best friend — charming, infuriatingly perceptive Ben — to coach her into falling for someone new. What could possibly go wrong?`,
+  descriptionFull: `What could possibly go wrong? Quite a lot, it turns out — especially when the line between friendship and something more begins to blur against the backdrop of ocean sunsets, terrible karaoke, and a wedding that refuses to go to plan.
+
+Funny, warm, and unexpectedly moving, The Shippers is Katherine Center at her very best: a story about the courage it takes to stop running from love, and the joy of finding it exactly where you weren't looking.`,
+  genres: [
+    "Romance",
+    "Contemporary",
+    "Friends To Lovers",
+    "Fiction",
+    "Rom-Com",
+    "Audiobook",
+    "Humor",
+  ],
+  detailCells: [
+    { key: "Format", value: "336 pages, Hardcover" },
+    { key: "First published", value: "May 19, 2026" },
+    { key: "Original title", value: "The Shippers" },
+    { key: "ISBN", value: "9781250408051" },
+  ],
+  metaRows: [
+    { key: "Pages", value: "336" },
+    { key: "Format", value: "Hardcover" },
+    { key: "Published", value: "May 19, 2026" },
+    { key: "Publisher", value: "St. Martin's Press" },
+  ],
+  editionRows: [
+    { key: "Format", value: "336 pages, Hardcover" },
+    { key: "Published", value: "May 19, 2026 by St. Martin's Press" },
+    { key: "ISBN", value: "9781250408051 (ISBN10: 1250408059)" },
+    { key: "Language", value: "English" },
+  ],
+};
+
+const fetchBookData = (id: string): Promise<ApiBookResponse> =>
+  api.get(`/getbookbyid?id=${id}`).then((r) => r.data);
+
+export const BookDetailPage: React.FC = () => {
+  const [expanded, setExpanded] = useState(false);
+  const { id } = useParams();
+
+  const { data, isLoading, isError } = useQuery<ApiBookResponse>({
+    queryKey: ["book-details", id],
+    queryFn: () => fetchBookData(id as string),
+    enabled: !!id,
+  });
+
+  const book: BookDetail = {
+    title: data?.title ?? BOOK.title,
+    author: data?.authors?.[0] ?? BOOK.author,
+    rating: data?.averageRating ?? BOOK.rating,
+    descriptionShort: data?.description ?? BOOK.descriptionShort,
+    descriptionFull: data?.description ?? BOOK.descriptionFull,
+    // genres: BOOK.genres,
+    // detailCells: BOOK.detailCells,
+    // metaRows: BOOK.metaRows,
+    // editionRows: BOOK.editionRows,
+  };
+  console.log("Fetched book data:", book);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-cream font-dm text-ink p-10">
+        Loading book details...
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="min-h-screen bg-cream font-dm text-ink p-10">
+        Unable to load book details.
+      </div>
+    );
+  }
+
+  const handleShelfSelect = () => {
+    // showToast("Added to shelf");
+  };
+
+  const handleRate = () => {
+    // showToast("You rated this book");
+  };
+
+  const handleShare = () => {
+    // showToast("Link copied!");
+  };
+
+  return (
+    <div className="min-h-screen bg-cream font-dm text-ink">
+      {/* <Navbar />
+      <Breadcrumb crumbs={BREADCRUMBS} /> */}
+
+      {/* Main layout */}
+      <main className="max-w-270 mx-auto px-8 py-10 pb-20 grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-14 items-start">
+        {/* ── Left column ── */}
+        <aside className="flex flex-col items-center gap-4">
+          {/* <BookCover title={BOOK.title} author={BOOK.author} badge="New" /> */}
+          <img
+            src={data?.thumbnail}
+            alt={`${book.title} cover`}
+            className="w-56 h-80 object-cover rounded-lg shadow"
+          />
+          <ShelfDropdown onSelect={handleShelfSelect} />
+          <StarRating onRate={handleRate} />
+          {/* <MetaCard rows={book.metaRows} /> */}
+        </aside>
+
+        {/* ── Right column ── */}
+        <section className="pt-1">
+          {/* Title + share */}
+          <div className="flex items-start justify-between mb-1">
+            <h1 className="font-lora text-[2.2rem] font-semibold text-ink leading-[1.15] tracking-tight">
+              {book.title}
+            </h1>
+            <button
+              onClick={handleShare}
+              aria-label="Share this book"
+              className="shrink-0 ml-4 mt-1 bg-transparent border border-border-ink rounded-lg px-2.5 py-2 text-ink-muted hover:border-border-ink-hover hover:text-ink transition-all duration-200 cursor-pointer"
+            >
+              <i className="ti ti-share text-[18px] block" aria-hidden="true" />
+            </button>
+          </div>
+
+          {/* Author */}
+          <div className="flex items-center gap-2 mb-4.5">
+            <a
+              href="#"
+              className="font-lora text-base text-sienna no-underline hover:underline cursor-pointer"
+            >
+              {book.author}
+            </a>
+            <div className="w-4.5 h-4.5 bg-gold rounded-full flex items-center justify-center shrink-0">
+              <i
+                className="ti ti-star text-[10px] text-white"
+                aria-hidden="true"
+              />
+            </div>
+          </div>
+
+          {/* Rating */}
+          {/* <RatingDisplay
+            score={BOOK.rating}
+            totalRatings={BOOK.totalRatings}
+            totalReviews={BOOK.totalReviews}
+          /> */}
+
+          {/* Description */}
+          <div
+            className={`book-description ${expanded ? "expanded" : "collapsed"}`}
+            dangerouslySetInnerHTML={{
+              __html: DOMPurify.sanitize(book.descriptionFull),
+            }}
+          />
+
+          <button
+            onClick={() => setExpanded((e) => !e)}
+            className="inline-flex items-center gap-1 text-[0.875rem] text-sienna font-medium font-dm bg-transparent border-none cursor-pointer p-0 mb-7 hover:underline"
+          >
+            {expanded ? "Show less" : "Show more"}
+            <i
+              className={`ti ${expanded ? "ti-chevron-up" : "ti-chevron-down"} text-[14px]`}
+              aria-hidden="true"
+            />
+          </button>
+
+          {/* Genres */}
+          {/* <GenrePills genres={book.genres} /> */}
+
+          {/* Detail grid */}
+          {/* <BookDetailsGrid cells={book.detailCells} /> */}
+
+          {/* Edition table */}
+          {/* <EditionTable rows={book.editionRows} /> */}
+        </section>
+      </main>
+
+      {/* Toast */}
+      {/* <Toast message={toast.message} visible={toast.visible} /> */}
+    </div>
+  );
+};

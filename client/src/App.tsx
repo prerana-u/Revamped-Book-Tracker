@@ -9,6 +9,7 @@ import SignupPage from "./Signup";
 import Dashboard from "./Components/main_components/UserDashboard/Dashboard";
 import { useAuth } from "./context/useAuth";
 import DiscoverPage from "./Components/main_components/DiscoverPage/DiscoverPage";
+import { BookDetailPage } from "./Components/main_components/DetailsPage/BookDetailPage";
 
 function App() {
   return (
@@ -34,6 +35,15 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/book-details/:id"
+          element={
+            <ProtectedRoute>
+              <BookDetailPage />
+            </ProtectedRoute>
+          }
+        />
+
         {/* <Route
             path="/"
             element={

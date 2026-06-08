@@ -30,6 +30,10 @@ const BookSchema1 = new mongoose.Schema({
   authors: [String],
   description: String,
   thumbnail: String,
+  publishedDate: String,
+  pageCount: Number,
+  publisher: String,
+  averageRating: Number,
   cachedAt: { type: Date, default: Date.now },
 });
 

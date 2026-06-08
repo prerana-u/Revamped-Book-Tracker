@@ -1,8 +1,7 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import pages from "../../assets/png/pages.png";
 // import book_base from "../Resources/Images/book_base.png";
 import axios from "axios";
-import { use, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import horrorIcon from "../../assets/png/horrorIcon.png";
 import romanceIcon from "../../assets/png/romanceIcon.png";
 import fantasyIcon from "../../assets/png/fantasyIcon.png";
@@ -32,8 +31,6 @@ export default function BookComp({
   className,
 }: BookCompProps) {
   //Register Scroll Trigger
-  // eslint-disable-next-line no-unused-vars
-  const [data, setData] = useState([]);
   const [desc, setDesc] = useState("");
   const [author1, setAuthor] = useState("");
   const [thumbnail, setThumbnail] = useState("");
@@ -79,9 +76,8 @@ export default function BookComp({
           },
         });
 
-        setData(res.data);
         setDesc(res.data.description);
-        setAuthor(res.data.authors[0]);
+        setAuthor(res.data.authors?.[0] ?? author);
         setThumbnail(res.data.thumbnail);
       } catch (err) {
         console.error("Error!! Book not found", err);
@@ -98,7 +94,7 @@ export default function BookComp({
   }, [thumbnail]);
   return (
     <div
-      className="relative w-50 h-auto mx-auto cursor-pointer bg-transparent font-lora"
+      className={`relative w-50 h-auto mx-auto cursor-pointer bg-transparent font-lora ${className}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
