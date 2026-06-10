@@ -10,8 +10,9 @@ import mysteryIcon from "../../assets/png/mysteryIcon.png";
 import thrillerIcon from "../../assets/png/thrillerIcon.png";
 import scienceFictionIcon from "../../assets/png/scienceFictionIcon.png";
 import historicalFictionIcon from "../../assets/png/historicalFictionIcon.png";
-
+import DOMPurify from "dompurify";
 import nonFictionIcon from "../../assets/png/nonFictionIcon.png";
+import { Link } from "react-router-dom";
 
 type BookCompProps = {
   name: string;
@@ -35,6 +36,7 @@ export default function BookComp({
   const [author1, setAuthor] = useState("");
   const [thumbnail, setThumbnail] = useState("");
   const [hovered, setHovered] = useState(false);
+  const [googleId, setGoogleId] = useState("");
   const genreIcons: Record<string, string> = {
     horror: horrorIcon,
     romance: romanceIcon,
@@ -75,7 +77,7 @@ export default function BookComp({
             ...(author && { author: author }),
           },
         });
-
+        setGoogleId(res.data.googleId);
         setDesc(res.data.description);
         setAuthor(res.data.authors?.[0] ?? author);
         setThumbnail(res.data.thumbnail);
@@ -103,7 +105,7 @@ export default function BookComp({
       >
         <div
           className={`absolute inset-0 z-20 flex items-start justify-center transition-all duration-500 ease-in-out 
-          ${hovered ? "-top-23.5 scale-[65%]" : "top-30 opacity-100 scale-100"}
+          ${hovered ? "-top-23.5 scale-[65%] pointer-events-none" : "top-30 opacity-100 scale-100"}
         `}
           id={id}
         >
@@ -126,16 +128,19 @@ export default function BookComp({
         </div>
         <div
           className={`absolute inset-0 z-10 transition-opacity duration-500 ease-in-out ${
-            hovered ? "opacity-100" : "opacity-0"
+            hovered
+              ? "pointer-events-auto opacity-100"
+              : "pointer-events-none opacity-0"
           } text-center`}
         >
-          <div className="flex flex-col items-center justify-center xl:w-68 xl:h-88 md:w-78 md:h-76 w-75 h-82.5 absolute mb-14 top-30 z-[-1] xl:-left-8 md:-left-12 -left-25 bg-white border border-sienna shadow rounded-lg">
-            <p
+          <div className="flex flex-col items-center justify-center xl:w-68 xl:h-88 md:w-78 md:h-76 w-75 h-82.5 absolute mb-14 top-30 z-20 xl:-left-8 md:-left-12 -left-25 bg-white border border-sienna shadow rounded-lg">
+            <Link
+              to={googleId ? `/book-details/${googleId}` : "#"}
               id="title"
-              className="text-[22px] w-50 font-bold text-center lg:mt-16 mt-18 text-sienna"
+              className="text-[22px] w-50 font-bold text-center lg:mt-16 mt-18 text-sienna cursor-pointer hover:underline"
             >
               {name}
-            </p>
+            </Link>
             <p
               id="author"
               className="text-[16px] text-ink font-bold text-center  mt-2 "
@@ -161,7 +166,16 @@ export default function BookComp({
 
             <div className="scrollable-div text-sm text-black text-justify p-5">
               <div className="md:w-70 xl:w-60 w-55 overflow-y-auto overflow-x-hidden h-25 pr-4">
-                {desc ? desc : "Description not available."}
+                {desc ? (
+                  <div
+                    className={`book-description `}
+                    dangerouslySetInnerHTML={{
+                      __html: DOMPurify.sanitize(desc),
+                    }}
+                  />
+                ) : (
+                  <p className="text-ink-muted">No description available.</p>
+                )}
               </div>
             </div>
           </div>

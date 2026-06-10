@@ -11,6 +11,8 @@ import { EditionTable } from "./EditionTable";
 import DOMPurify from "dompurify";
 import { api } from "../../../lib/axios-instance";
 import { useParams } from "react-router-dom";
+import { PenTool, Share } from "lucide-react";
+import NavBar from "../../common_components/Navbar";
 
 interface BookRow {
   key: string;
@@ -139,9 +141,10 @@ export const BookDetailPage: React.FC = () => {
     <div className="min-h-screen bg-cream font-dm text-ink">
       {/* <Navbar />
       <Breadcrumb crumbs={BREADCRUMBS} /> */}
+      <NavBar />
 
       {/* Main layout */}
-      <main className="max-w-270 mx-auto px-8 py-10 pb-20 grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-14 items-start">
+      <main className="max-w-270 mx-auto mt-16  px-8 py-10 pb-20 grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-14 items-start">
         {/* ── Left column ── */}
         <aside className="flex flex-col items-center gap-4">
           {/* <BookCover title={BOOK.title} author={BOOK.author} badge="New" /> */}
@@ -167,24 +170,19 @@ export const BookDetailPage: React.FC = () => {
               aria-label="Share this book"
               className="shrink-0 ml-4 mt-1 bg-transparent border border-border-ink rounded-lg px-2.5 py-2 text-ink-muted hover:border-border-ink-hover hover:text-ink transition-all duration-200 cursor-pointer"
             >
-              <i className="ti ti-share text-[18px] block" aria-hidden="true" />
+              <Share size={16} />
             </button>
           </div>
 
           {/* Author */}
           <div className="flex items-center gap-2 mb-4.5">
+            <PenTool size={18} className="text-ink-muted" />
             <a
               href="#"
               className="font-lora text-base text-sienna no-underline hover:underline cursor-pointer"
             >
               {book.author}
             </a>
-            <div className="w-4.5 h-4.5 bg-gold rounded-full flex items-center justify-center shrink-0">
-              <i
-                className="ti ti-star text-[10px] text-white"
-                aria-hidden="true"
-              />
-            </div>
           </div>
 
           {/* Rating */}

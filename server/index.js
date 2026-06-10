@@ -102,6 +102,7 @@ async function fetchBook(title, author) {
   // First, try to find it in the local DB
   const dbQuery = {
     title: new RegExp(`^${title}$`, "i"),
+    author: new RegExp(author ? `^${author}$` : ".*", "i"),
   };
 
   const existingBook = await CachedBook.findOne(dbQuery);
@@ -216,6 +217,29 @@ async function fetchBookByGoogleId(googleId) {
       publisher: info.publisher || "",
       averageRating: info.averageRating || 0,
     };
+
+    // Delete duplicates with same title and first author but different googleId
+    if (bookData.title && bookData.authors.length > 0) {
+      const firstAuthor = bookData.authors[0];
+      const duplicates = await CachedBook.deleteMany({
+        title: new RegExp(
+          `^${bookData.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+          "i",
+        ),
+        authors: {
+          $elemMatch: {
+            $regex: firstAuthor.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+            $options: "i",
+          },
+        },
+        googleId: { $ne: bookData.googleId },
+      });
+      if (duplicates.deletedCount > 0) {
+        console.log(
+          `Deleted ${duplicates.deletedCount} duplicate(s) for "${bookData.title}"`,
+        );
+      }
+    }
 
     const savedBook = await CachedBook.findOneAndUpdate(
       { googleId: bookData.googleId },

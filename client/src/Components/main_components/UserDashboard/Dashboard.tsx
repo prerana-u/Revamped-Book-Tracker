@@ -6,6 +6,7 @@ import NavBar from "../../common_components/Navbar";
 import { useAuth } from "../../../context/useAuth";
 import BookCarousel from "../../common_components/BookCarousel";
 import axios from "axios";
+import { Link } from "react-router-dom";
 
 /* ─── Types ─────────────────────────────────────────────────── */
 interface BookData {
@@ -103,7 +104,10 @@ function Skeleton({ className }: { className?: string }) {
 export default function UserDashboard() {
   const { user } = useAuth();
 
-  const [coverMap, setCoverMap] = useState<Record<string, string>>({});
+  const [coverMap, setCoverMap] = useState<
+    Record<string, { thumbnail: string; googleId: string }>
+  >({});
+
   const [activeTab, setActiveTab] = useState<
     "reading" | "want" | "recs" | "read"
   >("want");
@@ -142,7 +146,7 @@ export default function UserDashboard() {
         ...(author && { author }),
       },
     });
-    return res.data?.thumbnail;
+    return res.data;
   };
 
   useEffect(() => {
@@ -159,9 +163,10 @@ export default function UserDashboard() {
         missingCoverBooks.map(async (book: any) => {
           const title = book.title ?? book.name;
           try {
-            const thumbnail = await fetchCoverForBook(title, book.author);
-            if (thumbnail) {
-              return [book.bookid, thumbnail] as const;
+            const data = await fetchCoverForBook(title, book.author);
+
+            if (data?.thumbnail) {
+              return [book.bookid, data.thumbnail, data.googleId] as const;
             }
           } catch (err) {
             console.error("Failed to fetch cover for", title, err);
@@ -174,10 +179,11 @@ export default function UserDashboard() {
 
       const newCoverMap = coverEntries.reduce(
         (acc, entry) => {
-          if (entry) acc[entry[0]] = entry[1];
+          if (entry)
+            acc[entry[0]] = { thumbnail: entry[1], googleId: entry[2] };
           return acc;
         },
-        {} as Record<string, string>,
+        {} as Record<string, { thumbnail: string; googleId: string }>,
       );
 
       setCoverMap((prev) => ({ ...prev, ...newCoverMap }));
@@ -321,15 +327,19 @@ export default function UserDashboard() {
                 >
                   {/* Cover */}
                   <div className="relative shrink-0">
-                    <img
-                      src={
-                        coverMap[book.bookid] ??
-                        book.cover ??
-                        "https://via.placeholder.com/150x220?text=No+Cover"
-                      }
-                      alt={book.name}
-                      className="w-20 h-28 object-cover rounded-xl shadow-md group-hover:shadow-lg transition-shadow duration-300"
-                    />
+                    <Link
+                      to={`/book-details/${coverMap[book.bookid]?.googleId || book.googleId}`}
+                    >
+                      <img
+                        src={
+                          coverMap[book.bookid]?.thumbnail ??
+                          book.cover ??
+                          "https://via.placeholder.com/150x220?text=No+Cover"
+                        }
+                        alt={book.name}
+                        className="w-20 h-28 object-cover rounded-xl shadow-md group-hover:shadow-lg transition-shadow duration-300"
+                      />
+                    </Link>
                     {/* Progress overlay ring */}
                     <div className="absolute -bottom-2 -right-2 bg-cream-deep rounded-full p-0.5 shadow">
                       <div className="relative flex items-center justify-center">
@@ -348,9 +358,12 @@ export default function UserDashboard() {
                   {/* Info */}
                   <div className="flex flex-col justify-between min-w-0 flex-1 py-0.5">
                     <div>
-                      <p className="font-lora font-medium text-[1rem] text-ink leading-snug line-clamp-2">
+                      <Link
+                        to={`/book-details/${coverMap[book.bookid]?.googleId || book.googleId}`}
+                        className="font-lora font-medium text-[1rem] text-ink leading-snug line-clamp-2 hover:underline"
+                      >
                         {book.name}
-                      </p>
+                      </Link>
                       <p className="mt-1 text-[0.78rem] font-dm text-ink/45">
                         {book.author}
                       </p>
