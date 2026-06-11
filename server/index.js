@@ -76,10 +76,22 @@ const getBooks = async () => {
 };
 // getBooks();
 function normalize(str) {
-  return str
-    ?.toLowerCase()
-    .replace(/[^a-z0-9]/gi, "")
+  return String(str || "")
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/gi, "")
+    .trim()
+    .replace(/ /g, "");
+}
+
+function normalizeWhitespace(str) {
+  return String(str || "")
+    .replace(/\s+/g, " ")
     .trim();
+}
+
+function escapeRegex(str) {
+  return String(str || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function isMatch(volumeInfo, title, author) {
@@ -100,32 +112,51 @@ function isMatch(volumeInfo, title, author) {
 
 async function fetchBook(title, author) {
   // First, try to find it in the local DB
-  const dbQuery = {
-    title: new RegExp(`^${title}$`, "i"),
-    author: new RegExp(author ? `^${author}$` : ".*", "i"),
+  console.log(
+    "Searching for book in cache with title:",
+    title,
+    "and author:",
+    author,
+  );
+  const cleanedTitle = normalizeWhitespace(title);
+  const cleanedAuthor = normalizeWhitespace(author);
+  const normalizedTitle = normalize(title);
+  const normalizedAuthor = normalize(author);
+
+  const legacyQuery = {
+    title: new RegExp(`^${escapeRegex(cleanedTitle)}$`, "i"),
   };
 
-  const existingBook = await CachedBook.findOne(dbQuery);
+  if (cleanedAuthor) {
+    legacyQuery.authors = {
+      $elemMatch: {
+        $regex: escapeRegex(cleanedAuthor),
+        $options: "i",
+      },
+    };
+  }
+
+  const normalizedQuery = {
+    normalizedTitle,
+  };
+  if (cleanedAuthor) normalizedQuery.normalizedAuthors = normalizedAuthor;
+
+  const existingBook = await CachedBook.findOne(
+    cleanedAuthor
+      ? { $or: [normalizedQuery, legacyQuery] }
+      : { $or: [normalizedQuery, legacyQuery] },
+  );
+
   if (existingBook) {
-    const hasPublishedDate = !!existingBook.publishedDate;
-    const hasPageCount =
-      Number.isInteger(existingBook.pageCount) && existingBook.pageCount > 0;
-
-    if (hasPublishedDate && hasPageCount) {
-      console.log(title, "Found From Cache");
-      return existingBook;
-    }
-
-    console.log(
-      title,
-      "Found From Cache but missing publishedDate or pageCount, fetching from Google Books",
-    );
+    console.log(title, "Found From Cache");
+    return existingBook;
   }
 
   // Fetch from Google Books
-  let query = `intitle:"${title}"`;
 
-  if (author) query += `+inauthor:"${author.split(" ")[0]}"`;
+  let query = `intitle:"${cleanedTitle}"`;
+
+  if (cleanedAuthor) query += `+inauthor:"${cleanedAuthor}"`;
   console.log(
     "Query",
     `${GOOGLE_BOOKS_API}?q=${encodeURIComponent(
@@ -156,7 +187,9 @@ async function fetchBook(title, author) {
   const bookData = {
     googleId: bestMatch.id,
     title: info.title,
+    normalizedTitle: normalize(info.title),
     authors: info.authors || [],
+    normalizedAuthors: (info.authors || []).map(normalize),
     description: info.description || "",
     thumbnail: info.imageLinks?.thumbnail || "",
     publishedDate: info.publishedDate || "",
@@ -496,7 +529,14 @@ app.get("/getbookdata", async (req, res) => {
   if (!title) return res.status(400).json({ error: "Missing title" });
 
   try {
-    const book = await fetchBook(title, author);
+    let book = await fetchBook(title, author);
+    if (!book && author) {
+      const firstAuthorWord = author.trim().split(/\s+/)[0];
+      if (firstAuthorWord && firstAuthorWord !== author) {
+        console.log("Retrying with first word of author:", firstAuthorWord);
+        book = await fetchBook(title, firstAuthorWord);
+      }
+    }
     if (!book) return res.status(404).json({ error: "Book Not Found" });
 
     res.json(book);

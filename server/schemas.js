@@ -27,7 +27,9 @@ const BookSchema = new mongoose.Schema({
 const BookSchema1 = new mongoose.Schema({
   googleId: { type: String, unique: true },
   title: String,
+  normalizedTitle: String,
   authors: [String],
+  normalizedAuthors: [String],
   description: String,
   thumbnail: String,
   publishedDate: String,
@@ -38,6 +40,7 @@ const BookSchema1 = new mongoose.Schema({
 });
 
 BookSchema1.index({ title: 1, authors: 1 });
+BookSchema1.index({ normalizedTitle: 1, normalizedAuthors: 1 });
 
 const userSchema = new mongoose.Schema({
   username: String,

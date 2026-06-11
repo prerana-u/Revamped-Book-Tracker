@@ -17,7 +17,7 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/signup-page" element={<SignupPage />} />
-        <Route path="/home" element={<HomePage />} />
+        <Route path="/" element={<HomePage />} />
         {/* Protected dashboard route - only accessible when authenticated */}
         <Route
           path="/dashboard"
