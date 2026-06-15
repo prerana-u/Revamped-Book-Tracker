@@ -218,15 +218,16 @@ async function fetchBookByGoogleId(googleId) {
     const hasPublishedDate = !!existing.publishedDate;
     const hasPageCount =
       Number.isInteger(existing.pageCount) && existing.pageCount > 0;
+    const hasLanguage = !!existing.language && existing.language !== "unknown";
 
-    if (hasPublishedDate && hasPageCount) {
+    if (hasPublishedDate && hasPageCount && hasLanguage) {
       console.log(googleId, "Found From Cache");
       return existing;
     }
 
     console.log(
       googleId,
-      "Found From Cache but missing publishedDate or pageCount, fetching from Google Books",
+      "Found From Cache but missing publishedDate or pageCount or language, fetching from Google Books",
     );
   }
 
@@ -238,7 +239,10 @@ async function fetchBookByGoogleId(googleId) {
     const item = response.data;
     if (!item || !item.volumeInfo) return null;
     const info = item.volumeInfo;
-
+    const searchInfo = item?.searchInfo || {};
+    if (searchInfo.textSnippet && !info.description) {
+      info.description = searchInfo.textSnippet;
+    }
     const bookData = {
       googleId: item.id || googleId,
       title: info.title || "",
@@ -249,6 +253,15 @@ async function fetchBookByGoogleId(googleId) {
       pageCount: info.pageCount || 0,
       publisher: info.publisher || "",
       averageRating: info.averageRating || 0,
+      textSnippet: searchInfo.textSnippet || "",
+      isbn10:
+        (info.industryIdentifiers || []).find((id) => id.type === "ISBN_10")
+          ?.identifier || "",
+      isbn13:
+        (info.industryIdentifiers || []).find((id) => id.type === "ISBN_13")
+          ?.identifier || "",
+      categories: info.categories || [],
+      language: info.language || "",
     };
 
     // Delete duplicates with same title and first author but different googleId

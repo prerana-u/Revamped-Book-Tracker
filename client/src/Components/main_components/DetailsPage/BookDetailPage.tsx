@@ -13,6 +13,7 @@ import { api } from "../../../lib/axios-instance";
 import { useParams } from "react-router-dom";
 import { PenTool, Share } from "lucide-react";
 import NavBar from "../../common_components/Navbar";
+import { RatingDisplay } from "./RatingDisplay";
 
 interface BookRow {
   key: string;
@@ -23,12 +24,17 @@ interface BookDetail {
   title: string;
   author: string;
   rating: number;
+  totalRatings: string;
   descriptionShort: string;
   descriptionFull: string;
   genres: string[];
-  detailCells: BookRow[];
-  metaRows: BookRow[];
-  editionRows: BookRow[];
+  language?: string;
+  isbn10?: string;
+  isbn13?: string;
+  textSnippet?: string;
+  publisher: string;
+  published_date: string;
+  pageCount?: number;
 }
 
 interface ApiBookResponse {
@@ -89,6 +95,7 @@ const fetchBookData = (id: string): Promise<ApiBookResponse> =>
 export const BookDetailPage: React.FC = () => {
   const [expanded, setExpanded] = useState(false);
   const { id } = useParams();
+  const languageNames = new Intl.DisplayNames(["en"], { type: "language" });
 
   const { data, isLoading, isError } = useQuery<ApiBookResponse>({
     queryKey: ["book-details", id],
@@ -102,6 +109,14 @@ export const BookDetailPage: React.FC = () => {
     rating: data?.averageRating ?? BOOK.rating,
     descriptionShort: data?.description ?? BOOK.descriptionShort,
     descriptionFull: data?.description ?? BOOK.descriptionFull,
+    totalRatings: data?.averageRating ? data.averageRating.toString() : "0",
+    publisher: data?.publisher ?? "Unknown Publisher",
+    published_date: data?.publishedDate ?? "Unknown Date",
+    pageCount: data?.pageCount ?? undefined,
+    language: data?.language ?? "",
+    isbn10: data?.isbn10 ?? "",
+    isbn13: data?.isbn13 ?? "",
+    textSnippet: data?.textSnippet ?? "",
     // genres: BOOK.genres,
     // detailCells: BOOK.detailCells,
     // metaRows: BOOK.metaRows,
@@ -186,11 +201,10 @@ export const BookDetailPage: React.FC = () => {
           </div>
 
           {/* Rating */}
-          {/* <RatingDisplay
-            score={BOOK.rating}
-            totalRatings={BOOK.totalRatings}
-            totalReviews={BOOK.totalReviews}
-          /> */}
+          <RatingDisplay
+            score={Number(book.totalRatings)}
+            totalRatings={book.totalRatings}
+          />
 
           {/* Description */}
           <div
@@ -215,10 +229,31 @@ export const BookDetailPage: React.FC = () => {
           {/* <GenrePills genres={book.genres} /> */}
 
           {/* Detail grid */}
-          {/* <BookDetailsGrid cells={book.detailCells} /> */}
+          <h3 className="font-lora text-[1.1rem] font-semibold text-ink mb-3.5">
+            More Details
+          </h3>
+          <BookDetailsGrid
+            cells={[
+              {
+                key: "Language",
+                value: languageNames.of(book.language || "") ?? "Unknown",
+              },
+              { key: "ISBN-10", value: book.isbn10 ?? "Unknown" },
+              { key: "ISBN-13", value: book.isbn13 ?? "Unknown" },
+              {
+                key: "Page Count",
+                value: book.pageCount?.toString() ?? "Unknown",
+              },
+            ]}
+          />
 
           {/* Edition table */}
-          {/* <EditionTable rows={book.editionRows} /> */}
+          <EditionTable
+            rows={[
+              { key: "Publisher", value: book.publisher },
+              { key: "Published Date", value: book.published_date },
+            ]}
+          />
         </section>
       </main>
 
