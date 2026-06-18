@@ -166,7 +166,7 @@ export const BookDetailPage: React.FC = () => {
           <img
             src={data?.thumbnail}
             alt={`${book.title} cover`}
-            className="w-56 h-80 object-cover rounded-lg shadow"
+            className="w-60 h-90 object-cover rounded-lg shadow"
           />
           <ShelfDropdown onSelect={handleShelfSelect} />
           <StarRating onRate={handleRate} />

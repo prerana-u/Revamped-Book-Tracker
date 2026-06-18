@@ -136,7 +136,7 @@ export default function BookCarousel({
     }),
     [colBreakpoints],
   );
-  console.log("BookCarousel Render", books);
+
   const containerRef = useRef<HTMLDivElement>(null!);
   const visibleCols = useVisibleColumns(containerRef, bp);
   const [page, setPage] = useState(0);

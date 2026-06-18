@@ -89,13 +89,6 @@ export default function BookComp({
     void fetchbookddata();
   }, [name, author]);
 
-  useEffect(() => {
-    if (thumbnail) {
-      console.log(thumbnail);
-    }
-  }, [thumbnail]);
-
-  console.log(name, cover, genre, author);
   return (
     <div
       className={`relative w-50 h-auto mx-auto cursor-pointer bg-transparent font-lora ${className}`}

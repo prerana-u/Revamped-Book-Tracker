@@ -558,6 +558,34 @@ app.get("/getbookdata", async (req, res) => {
   }
 });
 
+app.get("/searchbookdata", async (req, res) => {
+  const q = req.query.q || req.query.title;
+  if (!q || String(q).trim().length < 2) {
+    return res.json({ data: [] });
+  }
+
+  const query = normalizeWhitespace(String(q));
+  try {
+    const response = await axios.get(
+      `${GOOGLE_BOOKS_API}?q=intitle:"${encodeURIComponent(query)}"&langRestrict=en&printType=books&orderBy=newest&maxResults=5&key=${apiKey}`,
+    );
+    const items = response.data.items || [];
+    const suggestions = items
+      .filter((item) => item.volumeInfo)
+      .map((item) => ({
+        googleId: item.id,
+        title: item.volumeInfo.title || "",
+        authors: item.volumeInfo.authors || [],
+        thumbnail: item.volumeInfo.imageLinks?.thumbnail || "",
+      }));
+
+    return res.json({ data: suggestions });
+  } catch (err) {
+    console.error("Search failed:", err.message || err);
+    return res.status(500).json({ data: [], error: "Search failed" });
+  }
+});
+
 // GET book by id (google volume id, mongo _id, or provider bookid)
 app.get("/getbookbyid", async (req, res) => {
   const { id } = req.query;
