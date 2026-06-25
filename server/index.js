@@ -78,10 +78,8 @@ const getBooks = async () => {
 function normalize(str) {
   return String(str || "")
     .replace(/\s+/g, " ")
-    .toLowerCase()
     .replace(/[^a-z0-9 ]/gi, "")
-    .trim()
-    .replace(/ /g, "");
+    .trim();
 }
 
 function normalizeWhitespace(str) {
@@ -94,11 +92,39 @@ function escapeRegex(str) {
   return String(str || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function stripEditionQualifiers(title) {
+  // Remove any parenthetical content from the end (e.g., "(Movie Tie-In)", "(Hardcover)", etc.)
+  let cleaned = String(title || "")
+    .replace(/\s*\([^)]*\)\s*$/g, "")
+    .trim();
+
+  // Remove content after colon if it contains qualifier keywords
+  // (e.g., ": Reese's Book Club", ": Deluxe Edition", ": Special Edition")
+  const colonIndex = cleaned.indexOf(":");
+  if (colonIndex !== -1) {
+    const afterColon = cleaned.substring(colonIndex + 1).toLowerCase();
+    if (
+      afterColon.includes("book club") ||
+      afterColon.includes("edition") ||
+      afterColon.includes("tie-in") ||
+      afterColon.includes("special") ||
+      afterColon.includes("deluxe") ||
+      afterColon.includes("anniversary")
+    ) {
+      cleaned = cleaned.substring(0, colonIndex).trim();
+    }
+  }
+
+  return cleaned;
+}
+
 function isMatch(volumeInfo, title, author) {
-  const normalizedTitle = normalize(volumeInfo.title);
+  const cleanVolumeTitle = stripEditionQualifiers(volumeInfo.title);
+  const cleanTargetTitle = stripEditionQualifiers(title);
+  const normalizedTitle = normalize(cleanVolumeTitle);
   const normalizedAuthorList = (volumeInfo.authors || []).map(normalize);
 
-  const targetTitle = normalize(title);
+  const targetTitle = normalize(cleanTargetTitle);
   const targetAuthor = normalize(author);
 
   const titleMatch =
@@ -118,19 +144,45 @@ async function fetchBook(title, author) {
     "and author:",
     author,
   );
-  const cleanedTitle = normalizeWhitespace(title);
+  const strippedTitle = stripEditionQualifiers(title);
+  const cleanedTitle = normalizeWhitespace(strippedTitle);
   const cleanedAuthor = normalizeWhitespace(author);
-  const normalizedTitle = normalize(title);
+  const normalizedTitle = normalize(strippedTitle);
   const normalizedAuthor = normalize(author);
-
+  console.log(
+    "Cleaned title:",
+    cleanedTitle,
+    "stripped title:",
+    strippedTitle,
+    title,
+    'normalized title:"',
+    normalizedTitle,
+  );
   const legacyQuery = {
-    title: new RegExp(`^${escapeRegex(cleanedTitle)}$`, "i"),
+    title: new RegExp(`^${escapeRegex(cleanedTitle)}`, "i"),
   };
 
   if (cleanedAuthor) {
+    // Handle flexible spacing and dots in author names (e.g., "J. R." vs "J.R." vs "J R")
+    let authorPattern;
+
+    if (/^[A-Za-z]{2,}$/.test(cleanedAuthor.replace(/\./g, ""))) {
+      // "EL", "JR", "JRR"
+      authorPattern =
+        cleanedAuthor.replace(/\./g, "").split("").join("\\.?\\s*") + "\\.?";
+    } else {
+      // "E L", "J. R.", "George R. R."
+      authorPattern =
+        cleanedAuthor
+          .split(/\s+/)
+          .map((part) =>
+            part.replace(/\./g, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+          )
+          .join("\\.?\\s*") + "\\.?";
+    }
     legacyQuery.authors = {
       $elemMatch: {
-        $regex: escapeRegex(cleanedAuthor),
+        $regex: authorPattern,
         $options: "i",
       },
     };
@@ -139,8 +191,17 @@ async function fetchBook(title, author) {
   const normalizedQuery = {
     normalizedTitle,
   };
-  if (cleanedAuthor) normalizedQuery.normalizedAuthors = normalizedAuthor;
-
+  if (cleanedAuthor) {
+    normalizedQuery.normalizedAuthors = {
+      $in: [normalizedAuthor],
+    };
+  }
+  console.log(
+    "Querying cache with:",
+    normalizedAuthor,
+    normalizedQuery,
+    legacyQuery,
+  );
   const existingBook = await CachedBook.findOne(
     cleanedAuthor
       ? { $or: [normalizedQuery, legacyQuery] }
@@ -157,12 +218,7 @@ async function fetchBook(title, author) {
   let query = `intitle:"${cleanedTitle}"`;
 
   if (cleanedAuthor) query += `+inauthor:"${cleanedAuthor}"`;
-  console.log(
-    "Query",
-    `${GOOGLE_BOOKS_API}?q=${encodeURIComponent(
-      query,
-    )}&langRestrict=en&printType=books&maxResults=5&key=${apiKey}`,
-  );
+
   const response = await axios.get(
     `${GOOGLE_BOOKS_API}?q=${encodeURIComponent(
       query,
@@ -218,7 +274,8 @@ async function fetchBookByGoogleId(googleId) {
     const hasPublishedDate = !!existing.publishedDate;
     const hasPageCount =
       Number.isInteger(existing.pageCount) && existing.pageCount > 0;
-    const hasLanguage = !!existing.language && existing.language !== "unknown";
+    const hasLanguage =
+      !!existing._doc.language && existing._doc.language !== "unknown";
 
     if (hasPublishedDate && hasPageCount && hasLanguage) {
       console.log(googleId, "Found From Cache");
@@ -227,7 +284,7 @@ async function fetchBookByGoogleId(googleId) {
 
     console.log(
       googleId,
-      "Found From Cache but missing publishedDate or pageCount or language, fetching from Google Books",
+      `Found From Cache but missing publishedDate:${hasPublishedDate} or pageCount:${hasPageCount} or language:${hasLanguage}, fetching from Google Books`,
     );
   }
 
@@ -248,7 +305,9 @@ async function fetchBookByGoogleId(googleId) {
       title: info.title || "",
       authors: info.authors || [],
       description: info.description || "",
-      thumbnail: info.imageLinks?.thumbnail || "",
+      thumbnail: info.imageLinks?.large
+        ? info.imageLinks?.large
+        : info.imageLinks?.thumbnail || "",
       publishedDate: info.publishedDate || "",
       pageCount: info.pageCount || 0,
       publisher: info.publisher || "",
@@ -300,6 +359,34 @@ async function fetchBookByGoogleId(googleId) {
       err.message || err,
     );
     return null;
+  }
+}
+
+async function refreshBookCover(googleId) {
+  const existing = await CachedBook.findOne({ googleId });
+  const response = await axios.get(
+    `${GOOGLE_BOOKS_API}/${encodeURIComponent(googleId)}?key=${apiKey}`,
+  );
+
+  console.log(
+    response.data.volumeInfo?.imageLinks?.large !== existing.thumbnail,
+    response.data.volumeInfo?.imageLinks?.large,
+    existing.thumbnail,
+    "new vs existing thumbnail",
+  );
+
+  const newThumbnail =
+    response.data.volumeInfo?.imageLinks?.large ||
+    response.data.volumeInfo?.imageLinks?.thumbnail;
+
+  if (newThumbnail && newThumbnail !== existing.thumbnail) {
+    console.log(
+      existing.thumbnail ===
+        "http://books.google.com/books/publisher/content?id=97FmEAAAQBAJ&printsec=frontcover&img=1&zoom=4&edge=curl&imgtk=AFLRE704jBhw6uBE5hjEg763qvk1DS-YXf3k3dvWJMbPXI9-pE6rFb_0Y5pGS_mKJJKFNaaMsB-e5sfx4Og0nWAaMiVnoWIdER9I77LcdQafQKeZyOo32AFhzlJjg3xaNgMb0VxM7vuT&source=gbs_api",
+    );
+    existing.thumbnail = newThumbnail;
+    await existing.save();
+    console.log(`Updated cover for ${existing.title}`);
   }
 }
 
@@ -595,6 +682,17 @@ app.get("/getbookbyid", async (req, res) => {
     if (!book) return res.status(404).json({ error: "Book Not Found" });
 
     res.json(book);
+  } catch (err) {
+    res.status(500).json({ error: "Server error" + err });
+  }
+});
+
+app.get("/refresh-book-cover", async (req, res) => {
+  const { id } = req.query;
+  if (!id) return res.status(400).json({ error: "Missing id" });
+  try {
+    await refreshBookCover(id);
+    res.json({ message: "Book cover refreshed successfully" });
   } catch (err) {
     res.status(500).json({ error: "Server error" + err });
   }

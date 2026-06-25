@@ -202,7 +202,7 @@ export default function GenresSection() {
           heightClass="h-122"
           gapClass="gap-x-12"
           showDots
-          className="mt-8"
+          className="mt-4"
         />
       </div>
     </div>

@@ -152,6 +152,14 @@ export const BookDetailPage: React.FC = () => {
     // showToast("Link copied!");
   };
 
+  const refreshBookCover = async (googleId: string) => {
+    try {
+      await api.get(`/refresh-book-cover?id=${googleId}`);
+    } catch (error) {
+      console.error("Error refreshing book cover:", error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-cream font-dm text-ink">
       {/* <Navbar />
@@ -168,6 +176,12 @@ export const BookDetailPage: React.FC = () => {
             alt={`${book.title} cover`}
             className="w-60 h-90 object-cover rounded-lg shadow"
           />
+          {/* <button
+            onClick={() => refreshBookCover(id as string)}
+            className="bg-sienna border border-border-ink text-ink hover:bg-cream-hover hover:text-ink-hover transition-all duration-200"
+          >
+            Refresh Cover
+          </button> */}
           <ShelfDropdown onSelect={handleShelfSelect} />
           <StarRating onRate={handleRate} />
           {/* <MetaCard rows={book.metaRows} /> */}
