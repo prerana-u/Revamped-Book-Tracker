@@ -518,6 +518,85 @@ const getUserBookLists = async (req, res) => {
   }
 };
 
+const addBookToUserShelf = async (req, res) => {
+  const { shelf, book } = req.body;
+  const allowedShelves = ["want_to_read", "currently_reading", "books_read"];
+
+  if (!shelf || !allowedShelves.includes(shelf)) {
+    return res.status(400).json({
+      error:
+        "Invalid shelf. Use want_to_read, currently_reading, or books_read.",
+    });
+  }
+
+  if (!book || !book.id || !book.title) {
+    return res.status(400).json({
+      error: "Book data is required and must include id and title.",
+    });
+  }
+
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const shelfEntry = {
+    title: book.title,
+    name: book.title,
+    author: book.author || "",
+    id: book.id,
+    bookid: book.bookid || book.id,
+    updated_at: new Date(),
+  };
+
+  try {
+    await UserBook.findOneAndUpdate(
+      { user_id: userId },
+      {
+        $setOnInsert: {
+          user_id: userId,
+          currently_reading: [],
+          want_to_read: [],
+          books_read: [],
+        },
+      },
+      {
+        upsert: true,
+      },
+    );
+
+    await UserBook.updateOne(
+      { user_id: userId },
+      {
+        $pull: {
+          want_to_read: { id: book.id },
+          currently_reading: { id: book.id },
+          books_read: { id: book.id },
+        },
+      },
+    );
+
+    const updated = await UserBook.findOneAndUpdate(
+      { user_id: userId },
+      {
+        $push: {
+          [shelf]: shelfEntry,
+        },
+      },
+      {
+        new: true,
+      },
+    );
+
+    res.json({ message: "Book added to shelf", data: updated });
+  } catch (err) {
+    console.error("Failed to add book to shelf:", err);
+    res
+      .status(500)
+      .json({ error: "Failed to add book to shelf", details: err.message });
+  }
+};
+
 const getPopularBooks = async (req, res) => {
   try {
     const popularCollection = mongoose.connection.collection(
@@ -700,6 +779,7 @@ app.get("/refresh-book-cover", async (req, res) => {
 
 app.post("/create-user", insertUser);
 app.post("/login", loginUser);
+app.post("/user-shelf", authenticateToken, addBookToUserShelf);
 app.get("/user-books/:userId", getUserBookLists);
 app.get("/popular-books", getPopularBooks);
 

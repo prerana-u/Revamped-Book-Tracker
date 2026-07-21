@@ -21,12 +21,24 @@ const SHELF_OPTIONS: ShelfItem[] = [
 
 interface ShelfDropdownProps {
   onSelect?: (shelf: ShelfOption) => void;
+  selected?: ShelfOption;
 }
 
-export const ShelfDropdown: React.FC<ShelfDropdownProps> = ({ onSelect }) => {
-  const [selected, setSelected] = useState<ShelfOption>("Want to Read");
+export const ShelfDropdown: React.FC<ShelfDropdownProps> = ({
+  onSelect,
+  selected: selectedProp,
+}) => {
+  const [selected, setSelected] = useState<ShelfOption>(
+    selectedProp ?? "Want to Read",
+  );
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (selectedProp) {
+      setSelected(selectedProp);
+    }
+  }, [selectedProp]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {

@@ -1,24 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { ShelfDropdown, type ShelfOption } from "./ShelfDropdown";
 import { StarRating } from "./StarRating";
-import { MetaCard } from "./MetaCard";
-import { GenrePills } from "./GenrePills";
 import { BookDetailsGrid } from "./BookDetailsGrid";
 import { EditionTable } from "./EditionTable";
 import DOMPurify from "dompurify";
 import { api } from "../../../lib/axios-instance";
+import { useAuth } from "../../../context/useAuth";
 import { useParams } from "react-router-dom";
 import { PenTool, Share } from "lucide-react";
 import NavBar from "../../common_components/Navbar";
 import { RatingDisplay } from "./RatingDisplay";
-
-interface BookRow {
-  key: string;
-  value: string;
-}
+import toast from "react-hot-toast";
 
 interface BookDetail {
   title: string;
@@ -95,6 +90,7 @@ const fetchBookData = (id: string): Promise<ApiBookResponse> =>
 export const BookDetailPage: React.FC = () => {
   const [expanded, setExpanded] = useState(false);
   const { id } = useParams();
+  const { user } = useAuth();
   const languageNames = new Intl.DisplayNames(["en"], { type: "language" });
 
   const { data, isLoading, isError } = useQuery<ApiBookResponse>({
@@ -117,12 +113,69 @@ export const BookDetailPage: React.FC = () => {
     isbn10: data?.isbn10 ?? "",
     isbn13: data?.isbn13 ?? "",
     textSnippet: data?.textSnippet ?? "",
-    // genres: BOOK.genres,
-    // detailCells: BOOK.detailCells,
-    // metaRows: BOOK.metaRows,
-    // editionRows: BOOK.editionRows,
+    genres: data?.categories ?? BOOK.genres,
   };
-  console.log("Fetched book data:", book);
+
+  const [selectedShelfOverride, setSelectedShelfOverride] =
+    useState<ShelfOption | null>(null);
+
+  const fetchUserShelf = async () => {
+    if (!user?.id)
+      return {
+        currently_reading: [],
+        want_to_read: [],
+        books_read: [],
+      };
+
+    try {
+      const response = await api.get(`/user-books/${user.id}`);
+      return response.data.data as {
+        currently_reading: any[];
+        want_to_read: any[];
+        books_read: any[];
+      };
+    } catch (error: any) {
+      if (error?.response?.status === 404) {
+        return {
+          currently_reading: [],
+          want_to_read: [],
+          books_read: [],
+        };
+      }
+      throw error;
+    }
+  };
+
+  const { data: userShelfData } = useQuery({
+    queryKey: ["user-shelf", user?.id],
+    queryFn: fetchUserShelf,
+    enabled: !!user?.id,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const initialSelectedShelf = useMemo<ShelfOption>(() => {
+    if (!id || !userShelfData) {
+      return "Want to Read";
+    }
+
+    const matchingShelf = [
+      ["currently_reading", "Currently Reading"],
+      ["want_to_read", "Want to Read"],
+      ["books_read", "Read"],
+    ] as const;
+
+    const found = matchingShelf.find(([key]) =>
+      userShelfData[key].some(
+        (item: any) => item.id === id || item.bookid === id,
+      ),
+    );
+
+    return found ? found[1] : "Want to Read";
+  }, [id, userShelfData]);
+
+  const selectedShelf = selectedShelfOverride ?? initialSelectedShelf;
+
+  console.log("Fetched book data:", selectedShelf, userShelfData, book, data);
 
   if (isLoading) {
     return (
@@ -140,8 +193,38 @@ export const BookDetailPage: React.FC = () => {
     );
   }
 
-  const handleShelfSelect = () => {
-    // showToast("Added to shelf");
+  const shelfMapping: Record<
+    ShelfOption,
+    "want_to_read" | "currently_reading" | "books_read"
+  > = {
+    "Want to Read": "want_to_read",
+    "Currently Reading": "currently_reading",
+    Read: "books_read",
+  };
+
+  const saveBookToShelf = async (shelf: ShelfOption) => {
+    if (!id) throw new Error("Missing book id");
+
+    const payload = {
+      shelf: shelfMapping[shelf],
+      book: {
+        id,
+        title: book.title,
+        author: book.author,
+        bookid: data?.googleId || id,
+      },
+    };
+
+    await api.post("/user-shelf", payload);
+  };
+
+  const handleShelfSelect = (shelf: ShelfOption) => {
+    setSelectedShelfOverride(shelf);
+    toast.promise(saveBookToShelf(shelf), {
+      loading: "Saving...",
+      success: <b>Saved to shelf!</b>,
+      error: <b>Could not save this book.</b>,
+    });
   };
 
   const handleRate = () => {
@@ -150,14 +233,6 @@ export const BookDetailPage: React.FC = () => {
 
   const handleShare = () => {
     // showToast("Link copied!");
-  };
-
-  const refreshBookCover = async (googleId: string) => {
-    try {
-      await api.get(`/refresh-book-cover?id=${googleId}`);
-    } catch (error) {
-      console.error("Error refreshing book cover:", error);
-    }
   };
 
   return (
@@ -182,7 +257,10 @@ export const BookDetailPage: React.FC = () => {
           >
             Refresh Cover
           </button> */}
-          <ShelfDropdown onSelect={handleShelfSelect} />
+          <ShelfDropdown
+            selected={selectedShelf}
+            onSelect={handleShelfSelect}
+          />
           <StarRating onRate={handleRate} />
           {/* <MetaCard rows={book.metaRows} /> */}
         </aside>

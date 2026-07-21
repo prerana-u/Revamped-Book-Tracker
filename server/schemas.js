@@ -52,32 +52,20 @@ const userSchema = new mongoose.Schema({
 });
 userSchema.index({ username: 1 }, { unique: true });
 
+const userBookItemSchema = new mongoose.Schema({
+  title: String,
+  name: String,
+  id: String,
+  bookid: String,
+  updated_at: Date,
+  author: String,
+});
+
 const userBookSchema = new mongoose.Schema({
   user_id: String,
-  currently_reading: [
-    {
-      title: String,
-      id: String,
-      updated_at: Date,
-      author: String,
-    },
-  ],
-  want_to_read: [
-    {
-      title: String,
-      id: String,
-      updated_at: Date,
-      author: String,
-    },
-  ],
-  books_read: [
-    {
-      title: String,
-      id: String,
-      updated_at: Date,
-      author: String,
-    },
-  ],
+  currently_reading: [userBookItemSchema],
+  want_to_read: [userBookItemSchema],
+  books_read: [userBookItemSchema],
 });
 userBookSchema.index({ user_id: 1 }, { unique: true });
 
