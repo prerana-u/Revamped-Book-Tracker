@@ -59,6 +59,7 @@ const userBookItemSchema = new mongoose.Schema({
   bookid: String,
   updated_at: Date,
   author: String,
+  rating: Number,
 });
 
 const userBookSchema = new mongoose.Schema({

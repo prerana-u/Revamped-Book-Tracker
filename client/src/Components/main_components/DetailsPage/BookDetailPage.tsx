@@ -14,6 +14,7 @@ import { PenTool, Share } from "lucide-react";
 import NavBar from "../../common_components/Navbar";
 import { RatingDisplay } from "./RatingDisplay";
 import toast from "react-hot-toast";
+import ShowRatingModal from "../../common_components/ShowRatingModal";
 
 interface BookDetail {
   title: string;
@@ -89,6 +90,7 @@ const fetchBookData = (id: string): Promise<ApiBookResponse> =>
 
 export const BookDetailPage: React.FC = () => {
   const [expanded, setExpanded] = useState(false);
+
   const { id } = useParams();
   const { user } = useAuth();
   const languageNames = new Intl.DisplayNames(["en"], { type: "language" });
@@ -118,6 +120,9 @@ export const BookDetailPage: React.FC = () => {
 
   const [selectedShelfOverride, setSelectedShelfOverride] =
     useState<ShelfOption | null>(null);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [pendingShelf, setPendingShelf] = useState<ShelfOption | null>(null);
+  const [bookRating, setBookRating] = useState(0);
 
   const fetchUserShelf = async () => {
     if (!user?.id)
@@ -164,18 +169,34 @@ export const BookDetailPage: React.FC = () => {
       ["books_read", "Read"],
     ] as const;
 
-    const found = matchingShelf.find(([key]) =>
+    const foundShelf = matchingShelf.find(([key]) =>
       userShelfData[key].some(
         (item: any) => item.id === id || item.bookid === id,
       ),
     );
 
-    return found ? found[1] : "Want to Read";
+    if (foundShelf) {
+      const [, shelf] = foundShelf;
+      return shelf;
+    }
+
+    return "Want to Read";
+  }, [id, userShelfData]);
+
+  const savedBookRating = useMemo(() => {
+    if (!id || !userShelfData) {
+      return 0;
+    }
+
+    const matchingBook = userShelfData.books_read.find(
+      (item: any) => item.id === id || item.bookid === id,
+    );
+
+    return Number(matchingBook?.rating) || 0;
   }, [id, userShelfData]);
 
   const selectedShelf = selectedShelfOverride ?? initialSelectedShelf;
-
-  console.log("Fetched book data:", selectedShelf, userShelfData, book, data);
+  const displayedRating = bookRating || savedBookRating;
 
   if (isLoading) {
     return (
@@ -202,7 +223,7 @@ export const BookDetailPage: React.FC = () => {
     Read: "books_read",
   };
 
-  const saveBookToShelf = async (shelf: ShelfOption) => {
+  const saveBookToShelf = async (shelf: ShelfOption, rating?: number) => {
     if (!id) throw new Error("Missing book id");
 
     const payload = {
@@ -212,6 +233,7 @@ export const BookDetailPage: React.FC = () => {
         title: book.title,
         author: book.author,
         bookid: data?.googleId || id,
+        rating: rating ?? undefined,
       },
     };
 
@@ -219,6 +241,13 @@ export const BookDetailPage: React.FC = () => {
   };
 
   const handleShelfSelect = (shelf: ShelfOption) => {
+    if (shelf === "Read") {
+      setPendingShelf(shelf);
+      setBookRating(savedBookRating);
+      setShowRatingModal(true);
+      return;
+    }
+
     setSelectedShelfOverride(shelf);
     toast.promise(saveBookToShelf(shelf), {
       loading: "Saving...",
@@ -227,8 +256,28 @@ export const BookDetailPage: React.FC = () => {
     });
   };
 
-  const handleRate = () => {
-    // showToast("You rated this book");
+  const handleRatingSave = () => {
+    if (!pendingShelf) return;
+
+    setSelectedShelfOverride(pendingShelf);
+    setShowRatingModal(false);
+
+    toast.promise(saveBookToShelf(pendingShelf, bookRating), {
+      loading: "Saving...",
+      success: <b>Saved to shelf!</b>,
+      error: <b>Could not save this book.</b>,
+    });
+  };
+
+  const handleRate = (rating: number) => {
+    setBookRating(rating);
+    setSelectedShelfOverride("Read");
+
+    toast.promise(saveBookToShelf("Read", rating), {
+      loading: "Saving rating...",
+      success: <b>Saved to your Read shelf!</b>,
+      error: <b>Could not save this rating.</b>,
+    });
   };
 
   const handleShare = () => {
@@ -261,7 +310,7 @@ export const BookDetailPage: React.FC = () => {
             selected={selectedShelf}
             onSelect={handleShelfSelect}
           />
-          <StarRating onRate={handleRate} />
+          <StarRating onRate={handleRate} ratingprop={displayedRating} />
           {/* <MetaCard rows={book.metaRows} /> */}
         </aside>
 
@@ -348,6 +397,16 @@ export const BookDetailPage: React.FC = () => {
           />
         </section>
       </main>
+
+      {showRatingModal && (
+        <ShowRatingModal
+          book={book}
+          setShowRatingModal={setShowRatingModal}
+          setBookRating={setBookRating}
+          bookRating={bookRating}
+          handleRatingSave={handleRatingSave}
+        />
+      )}
 
       {/* Toast */}
       {/* <Toast message={toast.message} visible={toast.visible} /> */}

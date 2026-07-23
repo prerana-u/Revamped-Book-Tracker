@@ -9,6 +9,7 @@ const bodyParser = require("body-parser");
 const jwt = require("jsonwebtoken");
 // const { createMongoUser } = require("./userController");
 const GOOGLE_BOOKS_API = "https://www.googleapis.com/books/v1/volumes";
+
 require("dotenv").config(); // at the top of your main file
 const apiKey = process.env.GOOGLE_BOOKS_API_KEY;
 const hapibooksapiKey = process.env.HAPI_BOOKS_API_KEY;
@@ -540,13 +541,16 @@ const addBookToUserShelf = async (req, res) => {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
+  const normalizedRating = Number(book.rating);
   const shelfEntry = {
     title: book.title,
-    name: book.title,
     author: book.author || "",
     id: book.id,
     bookid: book.bookid || book.id,
     updated_at: new Date(),
+    ...(shelf === "books_read" && Number.isFinite(normalizedRating)
+      ? { rating: normalizedRating }
+      : {}),
   };
 
   try {
@@ -564,6 +568,34 @@ const addBookToUserShelf = async (req, res) => {
         upsert: true,
       },
     );
+
+    const existingUserBooks = await UserBook.findOne({ user_id: userId });
+    const existingReadEntry = existingUserBooks?.books_read?.find(
+      (entry) => entry.id === book.id,
+    );
+
+    if (shelf === "books_read" && existingReadEntry) {
+      const updated = await UserBook.findOneAndUpdate(
+        { user_id: userId, "books_read.id": book.id },
+        {
+          $set: {
+            "books_read.$.title": shelfEntry.title,
+            "books_read.$.author": shelfEntry.author,
+            "books_read.$.bookid": shelfEntry.bookid,
+            "books_read.$.updated_at": shelfEntry.updated_at,
+            "books_read.$.rating": shelfEntry.rating,
+          },
+        },
+        {
+          new: true,
+        },
+      );
+
+      return res.json({
+        message: "Book rating updated on shelf",
+        data: updated,
+      });
+    }
 
     await UserBook.updateOne(
       { user_id: userId },

@@ -1,18 +1,17 @@
 import { Star } from "lucide-react";
-import React, { useState } from "react";
+import React from "react";
 
 interface StarRatingProps {
   onRate?: (rating: number) => void;
+  ratingprop?: number;
 }
 
-export const StarRating: React.FC<StarRatingProps> = ({ onRate }) => {
-  const [rating, setRating] = useState(0);
-  const [hover, setHover] = useState(0);
-
-  const handleRate = (v: number) => {
-    setRating(v);
-    onRate?.(v);
-  };
+export const StarRating: React.FC<StarRatingProps> = ({
+  onRate,
+  ratingprop,
+}) => {
+  const [hover, setHover] = React.useState(0);
+  const rating = ratingprop ?? 0;
 
   return (
     <div className="text-center w-full">
@@ -22,7 +21,7 @@ export const StarRating: React.FC<StarRatingProps> = ({ onRate }) => {
           <button
             key={v}
             aria-label={`${v} star${v > 1 ? "s" : ""}`}
-            onClick={() => handleRate(v)}
+            onClick={() => onRate?.(v)}
             onMouseEnter={() => setHover(v)}
             onMouseLeave={() => setHover(0)}
             className="text-[22px] leading-none bg-transparent border-none p-0 cursor-pointer transition-transform duration-100 hover:scale-110"

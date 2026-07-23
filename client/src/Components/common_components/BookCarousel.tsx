@@ -4,7 +4,8 @@ import BookComp from "./BookComp";
 
 /* ─── Types ──────────────────────────────────────────────────── */
 export interface BookCarouselItem {
-  name: string;
+  name?: string;
+  title?: string;
   cover: string;
   genre: string;
   author: string;
@@ -144,6 +145,7 @@ export default function BookCarousel({
   // Reset to page 0 when books list or column count changes
   useEffect(() => {
     setPage(0);
+    console.log("Boooksss", books);
   }, [books, visibleCols]);
 
   const totalPages = Math.ceil(books.length / visibleCols);
@@ -195,7 +197,7 @@ export default function BookCarousel({
                 <BookComp
                   key={`${book.name}-${index}`}
                   className="place-items-center"
-                  name={book.name}
+                  name={book.name ?? book.title ?? ""}
                   cover={book.cover}
                   genre={book.genre}
                   author={book.author}

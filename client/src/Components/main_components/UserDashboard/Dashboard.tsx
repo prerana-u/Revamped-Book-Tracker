@@ -11,7 +11,7 @@ import { Link } from "react-router-dom";
 /* ─── Types ─────────────────────────────────────────────────── */
 interface BookData {
   bookid: string;
-  name: string;
+  title: string;
   cover: string;
   genre: string;
   author: string;
@@ -161,7 +161,7 @@ export default function UserDashboard() {
     const loadCovers = async () => {
       const coverEntries = await Promise.all(
         missingCoverBooks.map(async (book: any) => {
-          const title = book.title ?? book.name;
+          const title = book.title ?? book.title;
           try {
             const data = await fetchCoverForBook(title, book.author);
 
@@ -197,11 +197,6 @@ export default function UserDashboard() {
   }, [yourBookData.data?.currently_reading]);
 
   const tabs = [
-    // {
-    //   key: "reading" as const,
-    //   label: "Currently Reading",
-    //   count: yourBookData.data?.currently_reading?.length,
-    // },
     {
       key: "want" as const,
       label: "Want to Read",
@@ -214,6 +209,10 @@ export default function UserDashboard() {
     },
     { key: "recs" as const, label: "For You", count: null },
   ];
+
+  useEffect(() => {
+    console.log(yourBookData.data, "Book Data");
+  }, [yourBookData.data]);
 
   return (
     <div className="min-h-screen bg-cream-deep">
@@ -336,7 +335,7 @@ export default function UserDashboard() {
                           book.cover ??
                           "https://via.placeholder.com/150x220?text=No+Cover"
                         }
-                        alt={book.name}
+                        alt={book.title}
                         className="w-20 h-28 object-cover rounded-xl shadow-md group-hover:shadow-lg transition-shadow duration-300"
                       />
                     </Link>
@@ -362,7 +361,7 @@ export default function UserDashboard() {
                         to={`/book-details/${coverMap[book.bookid]?.googleId || book.googleId}`}
                         className="font-lora font-medium text-[1rem] text-ink leading-snug line-clamp-2 hover:underline"
                       >
-                        {book.name}
+                        {book.title}
                       </Link>
                       <p className="mt-1 text-[0.78rem] font-dm text-ink/45">
                         {book.author}
@@ -485,7 +484,7 @@ export default function UserDashboard() {
                     <div className="lg:col-span-2 group rounded-2xl border border-ink/8 bg-white/70 hover:bg-white hover:shadow-xl hover:shadow-ink/6 transition-all duration-300 p-6 flex gap-5 cursor-pointer">
                       <img
                         src={recommendations[0].cover}
-                        alt={recommendations[0].name}
+                        alt={recommendations[0].title}
                         className="w-24 h-34 object-cover rounded-xl shadow-md shrink-0 group-hover:shadow-lg transition-shadow"
                       />
                       <div className="flex flex-col justify-between min-w-0 flex-1">
@@ -494,7 +493,7 @@ export default function UserDashboard() {
                             Top pick for you
                           </span>
                           <p className="font-lora font-medium text-[1.1rem] text-ink leading-snug line-clamp-2">
-                            {recommendations[0].name}
+                            {recommendations[0].title}
                           </p>
                           <p className="mt-1.5 text-[0.8rem] font-dm text-ink/45">
                             {recommendations[0].author}
@@ -531,12 +530,12 @@ export default function UserDashboard() {
                         >
                           <img
                             src={book.cover}
-                            alt={book.name}
+                            alt={book.title}
                             className="w-10 h-14 object-cover rounded-lg shadow-sm shrink-0"
                           />
                           <div className="flex-1 min-w-0">
                             <p className="font-dm font-medium text-[0.875rem] text-ink line-clamp-1">
-                              {book.name}
+                              {book.title}
                             </p>
                             <p className="text-[0.78rem] font-dm text-ink/40 mt-0.5">
                               {book.author}
