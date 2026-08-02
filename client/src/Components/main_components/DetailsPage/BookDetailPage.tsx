@@ -396,6 +396,7 @@ export const BookDetailPage: React.FC = () => {
             ]}
           />
         </section>
+        <div className="border-b border-ink-soft"> Spoiler free AI summary</div>
       </main>
 
       {showRatingModal && (
