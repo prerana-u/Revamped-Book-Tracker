@@ -1,15 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../../lib/axios-instance";
 import NavBar from "../../common_components/Navbar";
 import { useAuth } from "../../../context/useAuth";
 import BookCarousel from "../../common_components/BookCarousel";
 import axios from "axios";
 import { Link } from "react-router-dom";
+import toast from "react-hot-toast";
+import { ShelfDropdown, type ShelfOption } from "../DetailsPage/ShelfDropdown";
+import { RefreshCcw } from "lucide-react";
 
 /* ─── Types ─────────────────────────────────────────────────── */
 interface BookData {
+  whyRecommended?: string;
   bookid: string;
   title: string;
   cover: string;
@@ -45,54 +49,6 @@ const fetchRecommendations = (): Promise<BookData[]> =>
 const fetchUserStats = (): Promise<UserStats> =>
   api.get("/user/stats").then((r) => r.data);
 
-// const removeFromWantToRead = (bookId: string) =>
-//   api.delete(`/user/want-to-read/${bookId}`).then((r) => r.data);
-
-// const addToWantToRead = (bookId: string) =>
-//   api.post("/user/want-to-read", { bookId }).then((r) => r.data);
-
-/* ─── Sub-components ────────────────────────────────────────── */
-
-/** Circular progress ring for currently-reading cards */
-// function ProgressRing({
-//   progress,
-//   size = 44,
-//   stroke = 3,
-// }: {
-//   progress: number;
-//   size?: number;
-//   stroke?: number;
-// }) {
-//   const r = (size - stroke) / 2;
-//   const circ = 2 * Math.PI * r;
-//   const offset = circ - (progress / 100) * circ;
-//   return (
-//     <svg width={size} height={size} className="-rotate-90">
-//       <circle
-//         cx={size / 2}
-//         cy={size / 2}
-//         r={r}
-//         fill="none"
-//         stroke="currentColor"
-//         strokeWidth={stroke}
-//         className="text-ink/10"
-//       />
-//       <circle
-//         cx={size / 2}
-//         cy={size / 2}
-//         r={r}
-//         fill="none"
-//         stroke="currentColor"
-//         strokeWidth={stroke}
-//         strokeDasharray={circ}
-//         strokeDashoffset={offset}
-//         strokeLinecap="round"
-//         className="text-sienna transition-all duration-700"
-//       />
-//     </svg>
-//   );
-// }
-
 /** Skeleton pulse block */
 function Skeleton({ className }: { className?: string }) {
   return (
@@ -103,6 +59,7 @@ function Skeleton({ className }: { className?: string }) {
 /* ─── Main Dashboard ────────────────────────────────────────── */
 export default function UserDashboard() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const [coverMap, setCoverMap] = useState<
     Record<string, { thumbnail: string; googleId: string }>
@@ -111,11 +68,13 @@ export default function UserDashboard() {
   const [activeTab, setActiveTab] = useState<
     "reading" | "want" | "recs" | "read"
   >("want");
+  const [selectedRecommendationShelves, setSelectedRecommendationShelves] =
+    useState<Record<string, ShelfOption>>({});
 
   const fetchCurrentlyReading = (): Promise<UserBookData> =>
     api.get(`/user-books/${user.id}`).then((r) => r.data);
 
-  const { data: stats, isLoading: statsLoading } = useQuery({
+  const { data: stats } = useQuery({
     queryKey: ["userStats"],
     queryFn: fetchUserStats,
   });
@@ -147,6 +106,51 @@ export default function UserDashboard() {
       },
     });
     return res.data;
+  };
+
+  const shelfMapping: Record<
+    ShelfOption,
+    "want_to_read" | "currently_reading" | "books_read"
+  > = {
+    "Want to Read": "want_to_read",
+    "Currently Reading": "currently_reading",
+    Read: "books_read",
+  };
+
+  const toSecureCoverUrl = (url?: string) =>
+    (url ? url.replace(/^http:/i, "https:") : "") ||
+    "https://via.placeholder.com/150x220?text=No+Cover";
+
+  const refreshRecommendations = async () => {
+    await api.post("/user/recommendations/refresh");
+    await queryClient.invalidateQueries({ queryKey: ["recommendations"] });
+  };
+
+  const addBookToShelf = async (book: BookData, shelf: ShelfOption) => {
+    if (!user?.id) {
+      return;
+    }
+
+    const payload = {
+      shelf: shelfMapping[shelf],
+      book: {
+        id: book.bookid,
+        title: book.title,
+        author: book.author,
+        bookid: book.bookid,
+      },
+    };
+
+    await api.post("/user-shelf", payload);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["userBookData"] }),
+      queryClient.invalidateQueries({ queryKey: ["userStats"] }),
+      queryClient.invalidateQueries({ queryKey: ["recommendations"] }),
+    ]);
+    setSelectedRecommendationShelves((prev) => ({
+      ...prev,
+      [book.bookid]: shelf,
+    }));
   };
 
   useEffect(() => {
@@ -330,11 +334,9 @@ export default function UserDashboard() {
                       to={`/book-details/${coverMap[book.bookid]?.googleId || book.googleId}`}
                     >
                       <img
-                        src={
-                          coverMap[book.bookid]?.thumbnail ??
-                          book.cover ??
-                          "https://via.placeholder.com/150x220?text=No+Cover"
-                        }
+                        src={toSecureCoverUrl(
+                          coverMap[book.bookid]?.thumbnail ?? book.cover,
+                        )}
                         alt={book.title}
                         className="w-20 h-28 object-cover rounded-xl shadow-md group-hover:shadow-lg transition-shadow duration-300"
                       />
@@ -460,9 +462,25 @@ export default function UserDashboard() {
           {/* Recommendations */}
           {activeTab === "recs" && (
             <div className="flex flex-col gap-6">
-              <p className="text-[0.875rem] font-dm text-ink/50 -mt-2">
-                Curated picks based on what you've loved.
-              </p>
+              <div className="flex items-center justify-between border-b border-ink/8 pb-3">
+                <p className="text-[0.875rem] font-dm text-ink -mt-2">
+                  AI Curated picks based on what you've loved.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    toast.promise(refreshRecommendations(), {
+                      loading: "Refreshing recommendations...",
+                      success: <b>Fresh recommendations loaded.</b>,
+                      error: <b>Could not refresh recommendations.</b>,
+                    });
+                  }}
+                  disabled={recsLoading}
+                  className="bg-sienna p-4 text-white text-sm font-dm rounded-md flex items-center gap-2 hover:opacity-90 transition-opacity justify-center"
+                >
+                  <RefreshCcw size={20} /> Refresh Recs
+                </button>
+              </div>
 
               {recsLoading ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -483,7 +501,7 @@ export default function UserDashboard() {
                     {/* Hero rec */}
                     <div className="lg:col-span-2 group rounded-2xl border border-ink/8 bg-white/70 hover:bg-white hover:shadow-xl hover:shadow-ink/6 transition-all duration-300 p-6 flex gap-5 cursor-pointer">
                       <img
-                        src={recommendations[0].cover}
+                        src={toSecureCoverUrl(recommendations[0].cover)}
                         alt={recommendations[0].title}
                         className="w-24 h-34 object-cover rounded-xl shadow-md shrink-0 group-hover:shadow-lg transition-shadow"
                       />
@@ -492,32 +510,41 @@ export default function UserDashboard() {
                           <span className="text-[0.68rem] uppercase tracking-widest font-medium text-sienna font-dm block mb-2">
                             Top pick for you
                           </span>
-                          <p className="font-lora font-medium text-[1.1rem] text-ink leading-snug line-clamp-2">
+                          <Link
+                            to={`/book-details/${recommendations[0].bookid}`}
+                            className="font-lora font-medium text-[1.1rem] text-ink leading-snug line-clamp-2 hover:underline hover:text-sienna transition-colors duration-200"
+                          >
                             {recommendations[0].title}
-                          </p>
+                          </Link>
                           <p className="mt-1.5 text-[0.8rem] font-dm text-ink/45">
                             {recommendations[0].author}
                           </p>
                           <span className="mt-2 inline-block px-2.5 py-0.5 rounded-full bg-ink/5 text-ink/40 text-[0.7rem] font-dm">
                             {recommendations[0].genre}
                           </span>
+                          <p className="mt-2 text-[0.85rem] font-dm text-ink/45">
+                            {recommendations[0].whyRecommended}
+                          </p>
                         </div>
-                        <button
-                          //   onClick={() => addBook(recommendations[0].id)}
-                          className="mt-4 self-start flex items-center gap-1.5 px-4 py-2 rounded-[40px] bg-sienna text-white text-[0.78rem] font-dm font-medium hover:-translate-y-0.5 transition-all hover:shadow-md hover:shadow-sienna/25"
-                        >
-                          <svg
-                            width="13"
-                            height="13"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.5"
-                          >
-                            <path d="M12 5v14M5 12h14" />
-                          </svg>
-                          Add to list
-                        </button>
+                        <div className="mt-4 self-start w-52">
+                          <ShelfDropdown
+                            selected={
+                              selectedRecommendationShelves[
+                                recommendations[0].bookid
+                              ] ?? "Want to Read"
+                            }
+                            onSelect={(shelf) => {
+                              toast.promise(
+                                addBookToShelf(recommendations[0], shelf),
+                                {
+                                  loading: "Saving...",
+                                  success: <b>Saved to shelf!</b>,
+                                  error: <b>Could not save this book.</b>,
+                                },
+                              );
+                            }}
+                          />
+                        </div>
                       </div>
                     </div>
 
@@ -529,14 +556,17 @@ export default function UserDashboard() {
                           className="group rounded-xl border border-ink/8 bg-white/60 hover:bg-white hover:shadow-md hover:shadow-ink/5 transition-all duration-200 px-4 py-3 flex items-center gap-4 cursor-pointer"
                         >
                           <img
-                            src={book.cover}
+                            src={toSecureCoverUrl(book.cover)}
                             alt={book.title}
                             className="w-10 h-14 object-cover rounded-lg shadow-sm shrink-0"
                           />
                           <div className="flex-1 min-w-0">
-                            <p className="font-dm font-medium text-[0.875rem] text-ink line-clamp-1">
+                            <Link
+                              to={`/book-details/${book.bookid}`}
+                              className="font-dm font-medium text-[0.875rem] text-ink line-clamp-1 hover:underline hover:text-sienna transition-colors duration-200"
+                            >
                               {book.title}
-                            </p>
+                            </Link>
                             <p className="text-[0.78rem] font-dm text-ink/40 mt-0.5">
                               {book.author}
                             </p>
@@ -544,22 +574,22 @@ export default function UserDashboard() {
                           <span className="hidden sm:block text-[0.72rem] font-dm text-ink/30 bg-ink/5 px-2.5 py-1 rounded-full shrink-0">
                             {book.genre}
                           </span>
-                          <button
-                            // onClick={() => addBook(book.id)}
-                            className="shrink-0 w-8 h-8 rounded-full border border-ink/10 flex items-center justify-center text-ink/30 hover:border-sienna hover:text-sienna hover:bg-sienna/5 transition-all duration-200"
-                            aria-label="Add to want to read"
-                          >
-                            <svg
-                              width="14"
-                              height="14"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2.5"
-                            >
-                              <path d="M12 5v14M5 12h14" />
-                            </svg>
-                          </button>
+                          <div className="shrink-0 w-32">
+                            <ShelfDropdown
+                              compact
+                              selected={
+                                selectedRecommendationShelves[book.bookid] ??
+                                "Want to Read"
+                              }
+                              onSelect={(shelf) => {
+                                toast.promise(addBookToShelf(book, shelf), {
+                                  loading: "Saving...",
+                                  success: <b>Saved to shelf!</b>,
+                                  error: <b>Could not save this book.</b>,
+                                });
+                              }}
+                            />
+                          </div>
                         </div>
                       ))}
                     </div>

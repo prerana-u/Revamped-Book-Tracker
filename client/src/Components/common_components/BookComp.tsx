@@ -105,7 +105,7 @@ export default function BookComp({
           id={id}
         >
           <img
-            src={cover ? cover : thumbnail}
+            src={(cover ? cover : thumbnail).replace(/^http:/i, "https:")}
             id="coverimg"
             alt={name ? `Cover of ${name}` : "Book cover"}
             className="absolute z-20 md:w-48 md:h-68 md:left-3 left-9 w-50 h-62.5"

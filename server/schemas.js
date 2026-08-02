@@ -62,11 +62,25 @@ const userBookItemSchema = new mongoose.Schema({
   rating: Number,
 });
 
+const recommendationItemSchema = new mongoose.Schema(
+  {
+    title: String,
+    author: String,
+    genre: String,
+    whyRecommended: String,
+    cover: String,
+    bookid: String,
+    updated_at: Date,
+  },
+  { _id: false },
+);
+
 const userBookSchema = new mongoose.Schema({
   user_id: String,
   currently_reading: [userBookItemSchema],
   want_to_read: [userBookItemSchema],
   books_read: [userBookItemSchema],
+  recommendations: [recommendationItemSchema],
 });
 userBookSchema.index({ user_id: 1 }, { unique: true });
 

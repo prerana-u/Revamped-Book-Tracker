@@ -7,6 +7,7 @@ const axios = require("axios");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const jwt = require("jsonwebtoken");
+const { GoogleGenAI } = require("@google/genai");
 // const { createMongoUser } = require("./userController");
 const GOOGLE_BOOKS_API = "https://www.googleapis.com/books/v1/volumes";
 
@@ -14,6 +15,12 @@ require("dotenv").config(); // at the top of your main file
 const apiKey = process.env.GOOGLE_BOOKS_API_KEY;
 const hapibooksapiKey = process.env.HAPI_BOOKS_API_KEY;
 const HARDCOVER_API_KEY = process.env.HARDCOVER_API_KEY;
+const GEMINI_API_KEY =
+  process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY;
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+const genAI = GEMINI_API_KEY
+  ? new GoogleGenAI({ apiKey: GEMINI_API_KEY })
+  : null;
 mongoose.set("strictQuery", false);
 
 app.use(express.json());
@@ -119,6 +126,11 @@ function stripEditionQualifiers(title) {
   return cleaned;
 }
 
+function normalizeThumbnailUrl(url) {
+  if (!url || typeof url !== "string") return "";
+  return url.replace(/^http:/i, "https:");
+}
+
 function isMatch(volumeInfo, title, author) {
   const cleanVolumeTitle = stripEditionQualifiers(volumeInfo.title);
   const cleanTargetTitle = stripEditionQualifiers(title);
@@ -211,6 +223,7 @@ async function fetchBook(title, author) {
 
   if (existingBook) {
     console.log(title, "Found From Cache");
+    existingBook.thumbnail = normalizeThumbnailUrl(existingBook.thumbnail);
     return existingBook;
   }
 
@@ -248,7 +261,7 @@ async function fetchBook(title, author) {
     authors: info.authors || [],
     normalizedAuthors: (info.authors || []).map(normalize),
     description: info.description || "",
-    thumbnail: info.imageLinks?.thumbnail || "",
+    thumbnail: normalizeThumbnailUrl(info.imageLinks?.thumbnail || ""),
     publishedDate: info.publishedDate || "",
     pageCount: info.pageCount || 0,
     publisher: info.publisher || "",
@@ -280,6 +293,7 @@ async function fetchBookByGoogleId(googleId) {
 
     if (hasPublishedDate && hasPageCount && hasLanguage) {
       console.log(googleId, "Found From Cache");
+      existing.thumbnail = normalizeThumbnailUrl(existing.thumbnail);
       return existing;
     }
 
@@ -306,9 +320,9 @@ async function fetchBookByGoogleId(googleId) {
       title: info.title || "",
       authors: info.authors || [],
       description: info.description || "",
-      thumbnail: info.imageLinks?.large
-        ? info.imageLinks?.large
-        : info.imageLinks?.thumbnail || "",
+      thumbnail: normalizeThumbnailUrl(
+        info.imageLinks?.large || info.imageLinks?.thumbnail || "",
+      ),
       publishedDate: info.publishedDate || "",
       pageCount: info.pageCount || 0,
       publisher: info.publisher || "",
@@ -376,11 +390,15 @@ async function refreshBookCover(googleId) {
     "new vs existing thumbnail",
   );
 
-  const newThumbnail =
+  const newThumbnail = normalizeThumbnailUrl(
     response.data.volumeInfo?.imageLinks?.large ||
-    response.data.volumeInfo?.imageLinks?.thumbnail;
+      response.data.volumeInfo?.imageLinks?.thumbnail,
+  );
 
-  if (newThumbnail && newThumbnail !== existing.thumbnail) {
+  if (
+    newThumbnail &&
+    newThumbnail !== normalizeThumbnailUrl(existing.thumbnail)
+  ) {
     console.log(
       existing.thumbnail ===
         "http://books.google.com/books/publisher/content?id=97FmEAAAQBAJ&printsec=frontcover&img=1&zoom=4&edge=curl&imgtk=AFLRE704jBhw6uBE5hjEg763qvk1DS-YXf3k3dvWJMbPXI9-pE6rFb_0Y5pGS_mKJJKFNaaMsB-e5sfx4Og0nWAaMiVnoWIdER9I77LcdQafQKeZyOo32AFhzlJjg3xaNgMb0VxM7vuT&source=gbs_api",
@@ -620,6 +638,16 @@ const addBookToUserShelf = async (req, res) => {
       },
     );
 
+    if (shelf === "books_read") {
+      const refreshedUserBooks = await UserBook.findOne({ user_id: userId });
+      const recentBooksRead = sortBooksReadMostRecent(
+        refreshedUserBooks?.books_read || [],
+      ).slice(0, 5);
+      const recommendations =
+        await buildGeminiRecommendationPayload(recentBooksRead);
+      await storeRecommendationsForUser(userId, recommendations);
+    }
+
     res.json({ message: "Book added to shelf", data: updated });
   } catch (err) {
     console.error("Failed to add book to shelf:", err);
@@ -645,6 +673,252 @@ const getPopularBooks = async (req, res) => {
     console.error("Failed to fetch popular books by month:", err);
     res.status(500).json({
       error: "Failed to fetch popular books",
+      details: err.message,
+    });
+  }
+};
+
+function extractJsonArray(text) {
+  if (!text) return [];
+
+  const cleaned = String(text)
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .trim();
+
+  const match = cleaned.match(/\[[\s\S]*\]/);
+  if (match) {
+    return JSON.parse(match[0]);
+  }
+
+  return JSON.parse(cleaned);
+}
+
+async function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function requestGemini(prompt, attempt = 0) {
+  try {
+    const response = await genAI.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: prompt,
+    });
+
+    return response;
+  } catch (error) {
+    if (error?.status === 429 && attempt < 2) {
+      const delayMs = 2000 * (attempt + 1);
+      await sleep(delayMs);
+      return requestGemini(prompt, attempt + 1);
+    }
+
+    throw error;
+  }
+}
+
+async function buildFallbackRecommendations() {
+  try {
+    const popularCollection = mongoose.connection.collection(
+      "PopularBooksByMonth",
+    );
+    const books = await popularCollection.find({}).limit(5).toArray();
+
+    return books.map((book) => ({
+      title: book.title,
+      author: book.author || "",
+      genre: book.genre || "Popular",
+      cover: book.cover || "",
+      bookid: book.id || book.bookid || book.title,
+      whyRecommended:
+        "Fallback recommendation while the Gemini model is temporarily rate-limited.",
+    }));
+  } catch (fallbackError) {
+    console.error("Fallback recommendation lookup failed:", fallbackError);
+    return [];
+  }
+}
+
+function sortBooksReadMostRecent(booksRead) {
+  return [...(booksRead || [])].sort(
+    (a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0),
+  );
+}
+
+async function storeRecommendationsForUser(userId, recommendations) {
+  if (!userId) return;
+
+  await UserBook.findOneAndUpdate(
+    { user_id: userId },
+    {
+      $set: {
+        recommendations: recommendations.map((item) => ({
+          title: item.title,
+          author: item.author || "",
+          genre: item.genre || "Recommended",
+          whyRecommended: item.whyRecommended || "",
+          cover: item.cover || "",
+          bookid: item.bookid || "",
+          updated_at: new Date(),
+        })),
+      },
+    },
+    { new: true, upsert: true },
+  );
+}
+
+async function buildGeminiRecommendationPayload(booksRead) {
+  if (!Array.isArray(booksRead) || booksRead.length === 0) {
+    return [];
+  }
+
+  if (!GEMINI_API_KEY) {
+    throw new Error("GEMINI_API_KEY is not configured on the server");
+  }
+
+  const recentBooksRead = sortBooksReadMostRecent(booksRead).slice(0, 5);
+
+  const libraryPrompt = recentBooksRead
+    .map((book, index) => {
+      const title = String(book.title || "").trim();
+      const author = String(book.author || "").trim();
+      return `${index + 1}. ${title}${author ? ` by ${author}` : ""}`;
+    })
+    .join("\n");
+
+  const prompt = `You are a highly curated book recommendation engine. Based only on the user's library history below, recommend 5 books they are likely to enjoy next.
+
+Return ONLY valid JSON in this exact shape:
+[
+  {
+    "title": "Book Title",
+    "author": "Author Name",
+    "genre": "Genre",
+    "whyRecommended": "Short explanation"
+  }
+]
+
+User library history:
+${libraryPrompt}
+
+Requirements:
+- Only return a JSON array.
+- Do not include markdown fences.
+- Keep titles and author names realistic and well-formed.
+- Keep suggestions varied, but still aligned with the user's past reading patterns.`;
+
+  let response;
+  try {
+    response = await requestGemini(prompt);
+  } catch (error) {
+    if (error?.response?.status === 429) {
+      return buildFallbackRecommendations();
+    }
+
+    throw error;
+  }
+
+  const contentText =
+    response?.text ||
+    response?.output_text ||
+    response?.candidates?.[0]?.content ||
+    "";
+
+  const parsed = extractJsonArray(contentText);
+
+  const recommendations = (
+    await Promise.all(
+      parsed.map(async (item) => {
+        const recommendationBook = await fetchBook(item.title, item.author);
+
+        if (!recommendationBook?.googleId) {
+          return null;
+        }
+
+        return {
+          title: item.title,
+          author: item.author || "",
+          genre: item.genre || recommendationBook?.genre || "Recommended",
+          cover:
+            recommendationBook?.thumbnail || recommendationBook?.cover || "",
+          bookid: recommendationBook.googleId,
+          whyRecommended: item.whyRecommended || "",
+        };
+      }),
+    )
+  )
+    .filter(Boolean)
+    .slice(0, 5);
+
+  return recommendations;
+}
+
+async function refreshUserRecommendationsForUser(userId) {
+  const userBooks = await UserBook.findOne({ user_id: userId });
+  const booksRead = sortBooksReadMostRecent(userBooks?.books_read || []).slice(
+    0,
+    5,
+  );
+
+  if (!booksRead.length) {
+    await storeRecommendationsForUser(userId, []);
+    return [];
+  }
+
+  const recommendations = await buildGeminiRecommendationPayload(booksRead);
+  await storeRecommendationsForUser(userId, recommendations);
+  return recommendations;
+}
+
+const refreshUserRecommendations = async (req, res) => {
+  const userId = req.user?.id;
+
+  if (!userId) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  try {
+    const recommendations = await refreshUserRecommendationsForUser(userId);
+    return res.json(recommendations);
+  } catch (err) {
+    console.error("Failed to refresh recommendations:", err);
+    return res.status(500).json({
+      error: "Failed to refresh recommendations",
+      details: err.message,
+    });
+  }
+};
+
+const getUserRecommendations = async (req, res) => {
+  const userId = req.user?.id;
+
+  if (!userId) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  try {
+    const userBooks = await UserBook.findOne({ user_id: userId });
+
+    if (
+      Array.isArray(userBooks?.recommendations) &&
+      userBooks.recommendations.length > 0
+    ) {
+      return res.json(userBooks.recommendations);
+    }
+
+    const booksRead = userBooks?.books_read || [];
+
+    if (!booksRead.length) {
+      return res.json([]);
+    }
+
+    const recommendations = await buildGeminiRecommendationPayload(booksRead);
+    await storeRecommendationsForUser(userId, recommendations);
+    return res.json(recommendations);
+  } catch (err) {
+    console.error("Failed to generate recommendations:", err);
+    return res.status(500).json({
+      error: "Failed to generate recommendations",
       details: err.message,
     });
   }
@@ -774,7 +1048,9 @@ app.get("/searchbookdata", async (req, res) => {
         googleId: item.id,
         title: item.volumeInfo.title || "",
         authors: item.volumeInfo.authors || [],
-        thumbnail: item.volumeInfo.imageLinks?.thumbnail || "",
+        thumbnail: normalizeThumbnailUrl(
+          item.volumeInfo.imageLinks?.thumbnail || "",
+        ),
       }));
 
     return res.json({ data: suggestions });
@@ -812,7 +1088,13 @@ app.get("/refresh-book-cover", async (req, res) => {
 app.post("/create-user", insertUser);
 app.post("/login", loginUser);
 app.post("/user-shelf", authenticateToken, addBookToUserShelf);
+app.post(
+  "/user/recommendations/refresh",
+  authenticateToken,
+  refreshUserRecommendations,
+);
 app.get("/user-books/:userId", getUserBookLists);
+app.get("/user/recommendations", authenticateToken, getUserRecommendations);
 app.get("/popular-books", getPopularBooks);
 
 app.listen(port, () => {

@@ -296,7 +296,7 @@ export const BookDetailPage: React.FC = () => {
         <aside className="flex flex-col items-center gap-4">
           {/* <BookCover title={BOOK.title} author={BOOK.author} badge="New" /> */}
           <img
-            src={data?.thumbnail}
+            src={data?.thumbnail?.replace(/^http:/i, "https:")}
             alt={`${book.title} cover`}
             className="w-60 h-90 object-cover rounded-lg shadow"
           />
