@@ -15,6 +15,8 @@ import NavBar from "../../common_components/Navbar";
 import { RatingDisplay } from "./RatingDisplay";
 import toast from "react-hot-toast";
 import ShowRatingModal from "../../common_components/ShowRatingModal";
+import SummaryDisplay from "./SummaryDisplay";
+import MoreLikeThisSection from "./MoreLikeThisSection";
 
 interface BookDetail {
   title: string;
@@ -291,7 +293,7 @@ export const BookDetailPage: React.FC = () => {
       <NavBar />
 
       {/* Main layout */}
-      <main className="max-w-270 mx-auto mt-16  px-8 py-10 pb-20 grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-14 items-start">
+      <main className="max-w-270 mx-auto mt-16   py-10  grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-14 items-start">
         {/* ── Left column ── */}
         <aside className="flex flex-col items-center gap-4">
           {/* <BookCover title={BOOK.title} author={BOOK.author} badge="New" /> */}
@@ -396,9 +398,18 @@ export const BookDetailPage: React.FC = () => {
             ]}
           />
         </section>
-        <div className="border-b border-ink-soft"> Spoiler free AI summary</div>
       </main>
-
+      <section className="w-full max-w-270 mx-auto  pb-12">
+        <div className="font-lora text-[1.1rem] font-semibold text-ink mb-3.5 border-b border-ink-muted pb-2">
+          Spoiler free AI summary
+        </div>
+        <SummaryDisplay
+          title={book.title}
+          author={book.author}
+          googleId={data?.googleId || id}
+        />
+      </section>
+      <MoreLikeThisSection bookId={data?.googleId || id} />
       {showRatingModal && (
         <ShowRatingModal
           book={book}

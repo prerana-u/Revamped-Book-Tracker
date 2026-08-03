@@ -1,0 +1,67 @@
+[
+  {
+    "theme": "Enemies to lovers",
+    "description": "Characters start with intense dislike before falling in love.",
+    "icon":"romanceIcon"
+  },
+  {
+    "theme": "Second chance romance",
+    "description": "Past lovers reunite to fix old mistakes.",
+    "icon":"romanceIcon"
+  },
+  {
+    "theme": "Marriage of convenience",
+    "description": "A formal or fake union turns real.",    
+    "icon":"romanceIcon"
+  },
+  {
+    "theme": "Found family",
+    "description": "Unrelated characters form a deep, supportive kinship.",
+    "icon":"fictionIcon"
+  },
+  {
+    "theme": "Dystopian survival",
+    "description": "Societies struggle against oppressive governments or disasters.",
+    "icon":"fictionIcon"
+  },
+  {
+    "theme": "Chosen one",
+    "description": "An ordinary protagonist faces a massive destiny.",
+    "icon":"fantasyIcon"
+  },
+  {
+    "theme": "Coming of age",
+    "description": "Young characters grow into maturity and self-discovery.",
+    "icon":"fictionIcon"
+  },
+  {
+    "theme": "Grief and healing",
+    "description": "Stories focused on processing profound loss or trauma.",
+    "icon":"fictionIcon"
+  },
+  {
+    "theme": "Hidden identity",
+    "description": "Characters hide their true status, past, or powers.",
+    "icon":"fictionIcon"
+  },
+  {
+    "theme": "Forced Proximity / Snowed In",
+    "description": "Characters are trapped together, accelerating emotional tension.",
+    "icon":"romanceIcon"
+  },
+  {
+    "theme": "Grumpy x Sunshine",
+    "description": "Pairing an optimistic character with a cynical or stoic counterpart.",
+    "icon":"romanceIcon"
+  },
+  {
+    "theme": "Dark Academia / Secret Societies",
+    "description": "Elite academic backdrops, hidden knowledge, and obsessive atmospheres.",
+    "icon":"fantasyIcon"
+  },
+  {
+    "theme": "Unreliable Narrator / Domestic Suspense",
+    "description": "Stories centered on deceptive marriages and hidden pasts.",
+    "icon":"thrillerIcon"
+  }
+]

@@ -24,6 +24,19 @@ const BookSchema = new mongoose.Schema({
   },
 });
 
+const recommendationItemSchema = new mongoose.Schema(
+  {
+    title: String,
+    author: String,
+    genre: String,
+    whyRecommended: String,
+    cover: String,
+    bookid: String,
+    updated_at: Date,
+  },
+  { _id: false },
+);
+
 const BookSchema1 = new mongoose.Schema({
   googleId: { type: String, unique: true },
   title: String,
@@ -36,7 +49,15 @@ const BookSchema1 = new mongoose.Schema({
   pageCount: Number,
   publisher: String,
   averageRating: Number,
+  summary: String,
+  tone: String,
+  themes: [String],
+  summaryCachedAt: { type: Date, default: null },
+  moreLikeThisRecommendations: [recommendationItemSchema],
+  moreLikeThisRecommendationsCachedAt: { type: Date, default: null },
   cachedAt: { type: Date, default: Date.now },
+  themes: { type: [String], default: [] },
+  normalizedThemes: { type: [String], default: [], index: true },
 });
 
 BookSchema1.index({ title: 1, authors: 1 });
@@ -61,19 +82,6 @@ const userBookItemSchema = new mongoose.Schema({
   author: String,
   rating: Number,
 });
-
-const recommendationItemSchema = new mongoose.Schema(
-  {
-    title: String,
-    author: String,
-    genre: String,
-    whyRecommended: String,
-    cover: String,
-    bookid: String,
-    updated_at: Date,
-  },
-  { _id: false },
-);
 
 const userBookSchema = new mongoose.Schema({
   user_id: String,

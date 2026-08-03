@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import BookIcon from "../../assets/Icons/BookIcon";
 import { Loader, LogOut, SearchIcon } from "lucide-react";
@@ -107,9 +107,12 @@ export default function NavBar() {
         >
           <BookIcon />
         </div>
-        <span className="font-lora text-2xl font-semibold text-ink tracking-tight">
+        <Link
+          to="/"
+          className="font-lora text-2xl font-semibold text-ink tracking-tight"
+        >
           Pagebind
-        </span>
+        </Link>
       </a>
 
       <ul className="hidden md:flex font-dm items-center gap-8 list-none">

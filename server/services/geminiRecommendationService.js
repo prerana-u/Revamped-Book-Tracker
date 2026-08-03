@@ -1,7 +1,12 @@
 const mongoose = require("mongoose");
 const { genAI } = require("../config/gemini");
 const { geminiModel: GEMINI_MODEL } = require("../config/env");
-const { UserBook } = require("../schemas");
+const { UserBook, CachedBook } = require("../schemas");
+const {
+  normalize,
+  stripEditionQualifiers,
+  mapWithRateLimit,
+} = require("../utils/textUtils");
 const { fetchBook } = require("./googleBooksService");
 
 function extractJsonArray(text) {
@@ -65,10 +70,80 @@ async function buildFallbackRecommendations() {
   }
 }
 
+async function buildFallbackSingleBookRecommendations(seedBook) {
+  if (!seedBook?.title) {
+    return [];
+  }
+
+  try {
+    const popularCollection = mongoose.connection.collection(
+      "PopularBooksByMonth",
+    );
+    const books = await popularCollection.find({}).limit(5).toArray();
+
+    return books
+      .filter(
+        (book) =>
+          String(book.title || "").toLowerCase() !==
+          String(seedBook.title || "").toLowerCase(),
+      )
+      .slice(0, 5)
+      .map((book) => ({
+        title: book.title,
+        author: book.author || "",
+        genre: book.genre || "Popular",
+        cover: book.cover || "",
+        bookid: book.id || book.bookid || book.title,
+        whyRecommended:
+          "Fallback recommendation while the Gemini model is temporarily rate-limited.",
+      }));
+  } catch (fallbackError) {
+    console.error(
+      "Fallback single-book recommendation lookup failed:",
+      fallbackError,
+    );
+    return [];
+  }
+}
+
 function sortBooksReadMostRecent(booksRead) {
   return [...(booksRead || [])].sort(
     (a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0),
   );
+}
+
+async function findCachedBookForSingleBookRecommendations(book) {
+  if (!book?.title) {
+    return null;
+  }
+
+  const googleId = book?.googleId || book?.bookid || book?.id;
+  if (googleId) {
+    const byGoogleId = await CachedBook.findOne({ googleId }).lean();
+    if (byGoogleId) {
+      console.log(
+        "Found cached book for single-book recommendations by Google ID:",
+        googleId,
+      );
+      return byGoogleId;
+    }
+  }
+
+  const strippedTitle = stripEditionQualifiers(book.title);
+  const normalizedTitle = normalize(strippedTitle);
+  const normalizedAuthor = normalize(book.author);
+
+  const canonicalQuery = {
+    normalizedTitle,
+  };
+
+  if (normalizedAuthor) {
+    canonicalQuery.normalizedAuthors = {
+      $in: [normalizedAuthor],
+    };
+  }
+
+  return CachedBook.findOne(canonicalQuery).lean();
 }
 
 async function storeRecommendationsForUser(userId, recommendations) {
@@ -152,29 +227,169 @@ Requirements:
 
   const parsed = extractJsonArray(contentText);
 
-  const recommendations = (
-    await Promise.all(
-      parsed.map(async (item) => {
-        const recommendationBook = await fetchBook(item.title, item.author);
+  const fetchedBooks = await mapWithRateLimit(
+    parsed,
+    (item) => fetchBook(item.title, item.author),
+    { concurrency: 2, delayMs: 300 }, // tune these two numbers to taste
+  );
 
-        if (!recommendationBook?.googleId) {
-          return null;
-        }
+  const recommendations = parsed
+    .map((item, i) => {
+      const recommendationBook = fetchedBooks[i];
+      if (!recommendationBook?.googleId) return null;
 
-        return {
-          title: item.title,
-          author: item.author || "",
-          genre: item.genre || recommendationBook?.genre || "Recommended",
-          cover:
-            recommendationBook?.thumbnail || recommendationBook?.cover || "",
-          bookid: recommendationBook.googleId,
-          whyRecommended: item.whyRecommended || "",
-        };
-      }),
-    )
-  )
+      return {
+        title: item.title,
+        author: item.author || "",
+        genre: item.genre || recommendationBook?.genre || "Recommended",
+        cover: recommendationBook?.thumbnail || recommendationBook?.cover || "",
+        bookid: recommendationBook.googleId,
+        whyRecommended: item.whyRecommended || "",
+      };
+    })
     .filter(Boolean)
     .slice(0, 5);
+  return recommendations;
+}
+
+async function buildGeminiSingleBookRecommendations(book) {
+  if (!book?.title) {
+    return [];
+  }
+
+  const cachedBook = await findCachedBookForSingleBookRecommendations(book);
+
+  if (Array.isArray(cachedBook?.moreLikeThisRecommendations)) {
+    const existingRecommendations =
+      cachedBook.moreLikeThisRecommendations.filter((item) => item?.title);
+
+    if (existingRecommendations.length > 0) {
+      return existingRecommendations;
+    }
+  }
+
+  if (!genAI) {
+    throw new Error("GEMINI_API_KEY is not configured on the server");
+  }
+
+  const seedTitle = String(book.title || "").trim();
+  const seedAuthor = String(book.author || "").trim();
+  const seedDescription = String(book.description || "").trim();
+  const seedCategories = Array.isArray(book.categories)
+    ? book.categories.join(", ")
+    : String(book.genre || "").trim();
+
+  const prompt = `You are a highly curated book recommendation engine. Based on the single book below, recommend 5 books that are similar in tone, theme, audience, or genre.
+
+Return ONLY valid JSON in this exact shape:
+[
+  {
+    "title": "Book Title",
+    "author": "Author Name",
+    "genre": "Genre",
+    "whyRecommended": "Short explanation"
+  }
+]
+
+Seed book:
+Title: ${seedTitle}
+Author: ${seedAuthor || "Unknown author"}
+Description: ${seedDescription || "No description available."}
+Categories: ${seedCategories || "No categories available."}
+
+Requirements:
+- Only return a JSON array.
+- Do not include markdown fences.
+- Keep titles and author names realistic and well-formed.
+- Give 5 recommendations.
+- Keep the suggestions strongly aligned with the seed book's style, themes, and reading mood.`;
+
+  let response;
+  try {
+    response = await requestGemini(prompt);
+  } catch (error) {
+    if (error?.response?.status === 429) {
+      const fallbackRecommendations =
+        await buildFallbackSingleBookRecommendations(book);
+
+      if (cachedBook?._id) {
+        await CachedBook.findOneAndUpdate(
+          { _id: cachedBook._id },
+          {
+            $set: {
+              moreLikeThisRecommendations: fallbackRecommendations.map(
+                (item) => ({
+                  title: item.title,
+                  author: item.author || "",
+                  genre: item.genre || "Recommended",
+                  whyRecommended: item.whyRecommended || "",
+                  cover: item.cover || "",
+                  bookid: item.bookid || "",
+                  updated_at: new Date(),
+                }),
+              ),
+              moreLikeThisRecommendationsCachedAt: new Date(),
+            },
+          },
+        );
+      }
+
+      return fallbackRecommendations;
+    }
+
+    throw error;
+  }
+
+  const contentText =
+    response?.text ||
+    response?.output_text ||
+    response?.candidates?.[0]?.content ||
+    "";
+
+  const parsed = extractJsonArray(contentText);
+
+  const fetchedBooks = await mapWithRateLimit(
+    parsed,
+    (item) => fetchBook(item.title, item.author),
+    { concurrency: 2, delayMs: 300 }, // tune these two numbers to taste
+  );
+
+  const recommendations = parsed
+    .map((item, i) => {
+      const recommendationBook = fetchedBooks[i];
+      if (!recommendationBook?.googleId) return null;
+
+      return {
+        title: item.title,
+        author: item.author || "",
+        genre: item.genre || recommendationBook?.genre || "Recommended",
+        cover: recommendationBook?.thumbnail || recommendationBook?.cover || "",
+        bookid: recommendationBook.googleId,
+        whyRecommended: item.whyRecommended || "",
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 5);
+
+  if (cachedBook?._id) {
+    await CachedBook.findOneAndUpdate(
+      { _id: cachedBook._id },
+      {
+        $set: {
+          moreLikeThisRecommendations: recommendations.map((item) => ({
+            title: item.title,
+            author: item.author || "",
+            genre: item.genre || "Recommended",
+            whyRecommended: item.whyRecommended || "",
+            cover: item.cover || "",
+            bookid: item.bookid || "",
+            updated_at: new Date(),
+          })),
+          moreLikeThisRecommendationsCachedAt: new Date(),
+        },
+      },
+    );
+  }
 
   return recommendations;
 }
@@ -201,8 +416,11 @@ module.exports = {
   sleep,
   requestGemini,
   buildFallbackRecommendations,
+  buildFallbackSingleBookRecommendations,
+  findCachedBookForSingleBookRecommendations,
   sortBooksReadMostRecent,
   storeRecommendationsForUser,
   buildGeminiRecommendationPayload,
+  buildGeminiSingleBookRecommendations,
   refreshUserRecommendationsForUser,
 };

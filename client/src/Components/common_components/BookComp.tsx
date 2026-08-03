@@ -138,21 +138,23 @@ export default function BookComp({
             </Link>
             <p
               id="author"
-              className="text-[16px] text-ink font-bold text-center  mt-2 "
+              className="text-[16px] text-ink-soft font-bold text-center  mt-2 "
             >
               {author1}
             </p>
             {genre && (
               <div className="flex justify-center items-center mt-2">
-                <img
-                  src={genreIcons[genre.toLowerCase()]}
-                  alt="genreIcon"
-                  width={20}
-                  height={20}
-                />
+                {genreIcons[genre.toLowerCase()] && (
+                  <img
+                    src={genreIcons[genre.toLowerCase()]}
+                    alt="genreIcon"
+                    width={20}
+                    height={20}
+                  />
+                )}
                 <p
                   id="genre"
-                  className="text-[16px] font-bold text-center  text-ink-muted ms-1"
+                  className="text-[14px] font-bold text-center  text-ink-muted ms-1"
                 >
                   {genre}
                 </p>

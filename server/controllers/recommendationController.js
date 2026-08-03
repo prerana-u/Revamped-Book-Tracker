@@ -1,7 +1,8 @@
-const { UserBook } = require("../schemas");
+const { UserBook, CachedBook } = require("../schemas");
 const {
   refreshUserRecommendationsForUser,
   buildGeminiRecommendationPayload,
+  buildGeminiSingleBookRecommendations,
   storeRecommendationsForUser,
 } = require("../services/geminiRecommendationService");
 
@@ -59,4 +60,34 @@ const getUserRecommendations = async (req, res) => {
   }
 };
 
-module.exports = { refreshUserRecommendations, getUserRecommendations };
+const getMoreLikeThisRecommendations = async (req, res) => {
+  const { bookId } = req.params;
+
+  if (!bookId) {
+    return res.status(400).json({ error: "Missing book id" });
+  }
+
+  try {
+    const seedBook = await CachedBook.findOne({ googleId: bookId }).lean();
+
+    if (!seedBook) {
+      return res.json([]);
+    }
+
+    const recommendations =
+      await buildGeminiSingleBookRecommendations(seedBook);
+    return res.json(recommendations);
+  } catch (err) {
+    console.error("Failed to generate more-like-this recommendations:", err);
+    return res.status(500).json({
+      error: "Failed to generate more-like-this recommendations",
+      details: err.message,
+    });
+  }
+};
+
+module.exports = {
+  refreshUserRecommendations,
+  getUserRecommendations,
+  getMoreLikeThisRecommendations,
+};
