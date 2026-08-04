@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import horrorIcon from "../../../assets/png/horrorIcon.png";
 import romanceIcon from "../../../assets/png/romanceIcon.png";
@@ -16,6 +16,7 @@ import BookCarousel, {
   type BookCarouselItem,
 } from "../../common_components/BookCarousel";
 import themesData from "../../../assets/Json/themes.json";
+import { RefreshCcw, Search } from "lucide-react";
 
 // Maps the icon key stored in themes.json to the actual imported asset
 const ICON_MAP: Record<string, string> = {
@@ -40,26 +41,50 @@ const THEMES = themesData as ThemeDefinition[];
 
 export default function ThemesSection() {
   const [activeTheme, setActiveTheme] = useState(THEMES[0]?.theme ?? "");
+  // Bumped every time "Get New Recs" is clicked. Including it in the query
+  // key forces a refetch even though `activeTheme` hasn't changed, and its
+  // value (>0) tells the queryFn to ask the backend for a refresh instead
+  // of serving cached recs.
+  const [refreshToken, setRefreshToken] = useState(0);
 
   const activeThemeMeta = THEMES.find((t) => t.theme === activeTheme);
 
   const {
     data: books = [],
     isLoading,
+    isFetching,
     isError,
   } = useQuery<BookCarouselItem[], Error>({
-    queryKey: ["booksByTheme", activeTheme],
+    queryKey: ["booksByTheme", activeTheme, refreshToken],
     queryFn: async () => {
       const response = await api.get<BookCarouselItem[]>("/getbooksbytheme", {
         params: {
           theme: activeTheme,
           description: activeThemeMeta?.description,
+          // Only pass refresh on an actual refresh click, not the initial
+          // load or a theme switch (refreshToken resets to 0 on theme change)
+          ...(refreshToken > 0 ? { refresh: "true" } : {}),
         },
       });
       return response.data;
     },
     enabled: !!activeTheme,
   });
+
+  const handleThemeChange = (theme: string) => {
+    setActiveTheme(theme);
+    // Reset refresh state so switching themes doesn't carry over a stale
+    // "refresh" request from whatever theme was active before
+    setRefreshToken(0);
+  };
+
+  const handleRefresh = () => {
+    setRefreshToken((n) => n + 1);
+  };
+
+  useEffect(() => {
+    console.log(books, "books here 2");
+  }, [books]);
 
   return (
     <div className="bg-cream-deep py-16 px-6 lg:px-16 flex flex-col h-fit">
@@ -68,7 +93,7 @@ export default function ThemesSection() {
           Browse by theme
         </span>
         <h2 className="font-lora font-medium text-[clamp(1.8rem,3vw,2.8rem)] leading-[1.2] tracking-tight text-ink">
-          Whatever you're in the mood for
+          Trending Book Tropes or Themes
         </h2>
 
         {/* Theme pill buttons */}
@@ -76,7 +101,7 @@ export default function ThemesSection() {
           {THEMES.map(({ theme, icon }) => (
             <button
               key={theme}
-              onClick={() => setActiveTheme(theme)}
+              onClick={() => handleThemeChange(theme)}
               className={[
                 "flex items-center gap-2 px-5 py-2.5 rounded-[40px] text-[0.875rem] cursor-pointer whitespace-nowrap transition-all duration-200 border font-dm",
                 activeTheme === theme
@@ -95,9 +120,20 @@ export default function ThemesSection() {
         </div>
 
         {activeThemeMeta?.description && (
-          <p className="mt-4 text-sm text-ink-soft font-dm max-w-2xl">
-            {activeThemeMeta.description}
-          </p>
+          <div className="flex flex-row justify-between items-center mt-4 text-sm text-ink-soft font-dm w-full rounded-lg p-4 bg-cream">
+            <p>{activeThemeMeta.description}</p>
+            <button
+              onClick={handleRefresh}
+              disabled={isFetching}
+              className="bg-sienna p-3 cursor-pointer text-white text-[12px] font-semibold rounded-md font-dm flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <RefreshCcw
+                size={14}
+                className={isFetching ? "animate-spin" : ""}
+              />
+              {isFetching ? "Refreshing..." : "Get New Recs"}
+            </button>
+          </div>
         )}
 
         {/* Drop-in BookCarousel — zero carousel logic lives here */}

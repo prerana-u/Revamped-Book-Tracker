@@ -1,12 +1,7 @@
 const { CachedBook } = require("../schemas");
 const { normalize, mapWithRateLimit } = require("../utils/textUtils");
 const { fetchBook } = require("./googleBooksService");
-
-// Reuse the Gemini request/parsing helpers already built for recommendations
-const {
-  requestGemini,
-  extractJsonArray,
-} = require("./geminiRecommendationService");
+const { requestGroq } = require("./groqRecommendationService");
 
 const BOOKS_PER_THEME = 8;
 
@@ -27,7 +22,9 @@ function toCarouselItem(book) {
 async function findCachedBooksForTheme(theme) {
   const normalizedTheme = normalizeThemeName(theme);
   if (!normalizedTheme) return [];
-
+  console.log(
+    `Searching for cached books with normalized theme: "${normalizedTheme}"`,
+  );
   return CachedBook.find({ normalizedThemes: normalizedTheme })
     .limit(BOOKS_PER_THEME)
     .lean();
@@ -37,8 +34,6 @@ async function tagBookWithTheme(googleId, theme) {
   const normalizedTheme = normalizeThemeName(theme);
   if (!googleId || !normalizedTheme) return;
 
-  // $addToSet avoids duplicate entries if the same book gets matched
-  // to the same theme again later
   await CachedBook.findOneAndUpdate(
     { googleId },
     {
@@ -50,11 +45,18 @@ async function tagBookWithTheme(googleId, theme) {
   );
 }
 
-async function fetchBooksForThemeFromGemini(theme, description) {
-  const prompt = `You are a highly curated book recommendation engine. Recommend ${BOOKS_PER_THEME} books that strongly embody the following reading theme/trope.
+function buildPrompt(theme, description, excludeTitles = []) {
+  const exclusionBlock =
+    excludeTitles.length > 0
+      ? `\n\nDo NOT recommend any of these titles (already shown to the user):\n${excludeTitles
+          .map((t) => `- ${t}`)
+          .join("\n")}`
+      : "";
+
+  return `You are a highly curated book recommendation engine. Recommend ${BOOKS_PER_THEME} books that strongly embody the following reading theme/trope.
 
 Theme: ${theme}
-Theme description: ${description || "No description provided."}
+Theme description: ${description || "No description provided."}${exclusionBlock}
 
 Return ONLY valid JSON in this exact shape:
 [
@@ -72,35 +74,63 @@ Requirements:
 - Keep titles and author names realistic and well-formed.
 - Give exactly ${BOOKS_PER_THEME} recommendations.
 - Prioritize well-known, findable books that clearly embody this theme.`;
-
-  const response = await requestGemini(prompt);
-
-  const contentText =
-    response?.text ||
-    response?.output_text ||
-    response?.candidates?.[0]?.content ||
-    "";
-
-  return extractJsonArray(contentText);
 }
 
-async function getBooksByTheme(theme, description) {
+async function fetchBooksForThemeFromGroq(
+  theme,
+  description,
+  excludeTitles = [],
+) {
+  const prompt = buildPrompt(theme, description, excludeTitles);
+  return requestGroq(prompt);
+}
+
+/**
+ * @param {string} theme
+ * @param {string} description
+ * @param {object} [options]
+ * @param {boolean} [options.forceRefresh] - if true, skips the cache-first
+ *   lookup and asks Groq for a fresh batch, excluding titles already cached
+ *   for this theme so the user actually sees new recommendations.
+ */
+async function getBooksByTheme(theme, description, options = {}) {
+  const { forceRefresh = false } = options;
+
   if (!theme) return [];
 
-  // 1. Try the DB first
-  const cachedBooks = await findCachedBooksForTheme(theme);
-  if (cachedBooks.length > 0) {
-    console.log(
-      `Found ${cachedBooks.length} cached book(s) for theme "${theme}"`,
-    );
-    return cachedBooks.map(toCarouselItem);
+  // Cache read is skipped entirely on refresh — otherwise we'd just hand
+  // back the exact same cached set the user is trying to get away from
+  if (!forceRefresh) {
+    const cachedBooks = await findCachedBooksForTheme(theme);
+    if (cachedBooks.length > 0) {
+      console.log(
+        `Found ${cachedBooks.length} cached book(s) for theme "${theme}"`,
+      );
+      return cachedBooks.map(toCarouselItem);
+    }
   }
 
-  // 2. Cache miss -> ask Gemini for candidates
-  const parsed = await fetchBooksForThemeFromGemini(theme, description);
+  // On refresh, pull existing cached titles for this theme so we can tell
+  // Groq to avoid repeating them
+  let excludeTitles = [];
+  if (forceRefresh) {
+    const existing = await findCachedBooksForTheme(theme);
+    excludeTitles = existing.map((b) => b.title).filter(Boolean);
+  }
 
-  // 3. Resolve each candidate against Google Books / local cache,
-  //    throttled to avoid 503s (see mapWithRateLimit)
+  const parsed = await fetchBooksForThemeFromGroq(
+    theme,
+    description,
+    excludeTitles,
+  );
+
+  if (parsed.length === 0) {
+    console.warn(
+      `No books resolved for theme "${theme}" after all retries/fallback`,
+    );
+    return [];
+  }
+
   const fetchedBooks = await mapWithRateLimit(
     parsed,
     (item) => fetchBook(item.title, item.author),
@@ -109,7 +139,6 @@ async function getBooksByTheme(theme, description) {
 
   const validBooks = fetchedBooks.filter((book) => book?.googleId);
 
-  // 4. Tag every resolved book with this theme so future lookups hit the DB
   await Promise.all(
     validBooks.map((book) => tagBookWithTheme(book.googleId, theme)),
   );

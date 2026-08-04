@@ -7,7 +7,9 @@ const { hapiBooksApiKey } = require("../config/env");
 const getBooks = async () => {
   try {
     const response = await axios.get(
-      "https://hapi-books.p.rapidapi.com/nominees/romance/2024",
+      //https://hapi-books.p.rapidapi.com/week/contemporary/20
+      //https://hapi-books.p.rapidapi.com/nominees/young-adult-fiction/2019
+      "https://hapi-books.p.rapidapi.com/week/contemporary/100",
       {
         headers: {
           "X-RapidAPI-Key": hapiBooksApiKey,
@@ -21,8 +23,8 @@ const getBooks = async () => {
         name: response.data[i]["name"],
         cover: response.data[i]["cover"],
         bookid: response.data[i]["book_id"],
-        author: response.data[i]["author"],
-        genre: "Romance",
+        author: "Author Not Found",
+        genre: "Contemporary",
       });
       post
         .save()

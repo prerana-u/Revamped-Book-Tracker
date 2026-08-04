@@ -17,7 +17,7 @@
   {
     "theme": "Found family",
     "description": "Unrelated characters form a deep, supportive kinship.",
-    "icon":"fictionIcon"
+    "icon":"romanceIcon"
   },
   {
     "theme": "Dystopian survival",
@@ -32,12 +32,12 @@
   {
     "theme": "Coming of age",
     "description": "Young characters grow into maturity and self-discovery.",
-    "icon":"fictionIcon"
+    "icon":"fantasyIcon"
   },
   {
     "theme": "Grief and healing",
     "description": "Stories focused on processing profound loss or trauma.",
-    "icon":"fictionIcon"
+    "icon":"nonFictionIcon"
   },
   {
     "theme": "Hidden identity",

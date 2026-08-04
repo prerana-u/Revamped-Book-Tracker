@@ -153,7 +153,8 @@ export default function BookCarousel({
 
   const visibleBooks = useMemo(() => {
     const start = safePage * visibleCols;
-    return books.slice(start, start + visibleCols);
+    console.log("Bookkss Here", books);
+    if (books) return books?.slice(start, start + visibleCols);
   }, [books, safePage, visibleCols]);
 
   const canGoPrev = safePage > 0;

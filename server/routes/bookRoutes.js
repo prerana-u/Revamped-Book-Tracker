@@ -21,17 +21,19 @@ router.get("/searchbookdata", searchBookData);
 router.get("/getbookbyid", getBookById);
 router.get("/refresh-book-cover", refreshBookCoverHandler);
 
-router.get("/getbooksbytheme", async (req, res) => {
+async function getThemeBooks(req, res) {
+  const { theme, description } = req.query;
+  const forceRefresh = req.query.refresh === "true";
+
   try {
-    const { theme, description } = req.query;
-    if (!theme) {
-      return res.status(400).json({ error: "theme query param is required" });
-    }
-    const books = await getBooksByTheme(theme, description);
-    res.json(books);
+    const books = await getBooksByTheme(theme, description, { forceRefresh });
+    res.json(books); // send array directly, no wrapper object
   } catch (err) {
-    console.error("Error fetching books by theme:", err);
-    res.status(500).json({ error: "Failed to fetch books by theme" });
+    console.error("Error fetching theme books:", err);
+    res.status(500).json({ error: "Failed to fetch recommendations" });
   }
-});
+}
+
+// routes/themes.js
+router.get("/getbooksbytheme", getThemeBooks);
 module.exports = router;

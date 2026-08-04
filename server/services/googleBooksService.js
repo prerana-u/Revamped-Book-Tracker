@@ -16,26 +16,13 @@ const { stripEditionQualifiers } = require("../utils/textUtils");
 
 async function fetchBook(title, author) {
   // First, try to find it in the local DB
-  console.log(
-    "Searching for book in cache with title:",
-    title,
-    "and author:",
-    author,
-  );
+
   const strippedTitle = stripEditionQualifiers(title);
   const cleanedTitle = normalizeWhitespace(strippedTitle);
   const cleanedAuthor = normalizeWhitespace(author);
   const normalizedTitle = normalize(strippedTitle);
   const normalizedAuthor = normalize(author);
-  console.log(
-    "Cleaned title:",
-    cleanedTitle,
-    "stripped title:",
-    strippedTitle,
-    title,
-    'normalized title:"',
-    normalizedTitle,
-  );
+
   const legacyQuery = {
     title: new RegExp(`^${escapeRegex(cleanedTitle)}`, "i"),
   };
@@ -74,12 +61,7 @@ async function fetchBook(title, author) {
       $in: [normalizedAuthor],
     };
   }
-  console.log(
-    "Querying cache with:",
-    normalizedAuthor,
-    normalizedQuery,
-    legacyQuery,
-  );
+
   const existingBook = await CachedBook.findOne(
     cleanedAuthor
       ? { $or: [normalizedQuery, legacyQuery] }

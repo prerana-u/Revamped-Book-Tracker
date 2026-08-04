@@ -5,6 +5,7 @@ import BookCarousel from "../../common_components/BookCarousel";
 import GenresSection from "../MainHomePageComps/GenresSection";
 import { api } from "../../../lib/axios-instance";
 import { useQuery } from "@tanstack/react-query";
+import ThemesSection from "../MainHomePageComps/ThemesSection";
 
 type MockBook = {
   id: string;
@@ -100,6 +101,9 @@ const DiscoverPage: React.FC = () => {
 
         <section>
           <GenresSection />
+        </section>
+        <section>
+          <ThemesSection />
         </section>
       </div>
     </div>
