@@ -102,14 +102,14 @@ export const Hero: React.FC = () => (
 
       <div className="flex items-center gap-4 flex-wrap animate-fade-up animation-delay-400">
         <a
-          href="#"
+          href="/login"
           className="text-base font-medium text-white bg-sienna px-7 py-3.5 rounded-xl hover:opacity-90 hover:-translate-y-0.5 transition-all duration-200 no-underline"
         >
           Start for free
         </a>
         <a
-          href="#"
-          className="text-base text-ink border border-[rgba(28,26,22,0.2)] px-6 py-3.5 rounded-xl hover:border-ink-soft hover:bg-white transition-all duration-200 no-underline"
+          href="/discover"
+          className="text-base text-ink border border-[rgba(28,26,22,0.2)] px-6 py-3.5 rounded-xl hover:border-sienna hover:text-sienna transition-all duration-200 no-underline"
         >
           Browse books →
         </a>

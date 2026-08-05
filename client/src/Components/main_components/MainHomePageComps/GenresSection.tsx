@@ -13,6 +13,8 @@ import historicalFictionIcon from "../../../assets/png/historicalFictionIcon.png
 import nonFictionIcon from "../../../assets/png/nonFictionIcon.png";
 import SvgIcon from "../../common_components/SvgIcon";
 import contemporaryIcon from "../../../assets/png/contemporaryIcon.png";
+import youngAdultIcon from "../../../assets/png/youngAdultIcon.png";
+
 import { api } from "../../../lib/axios-instance";
 import BookCarousel, {
   type BookCarouselItem,
@@ -142,6 +144,17 @@ const GENRES: Genre[] = [
       <SvgIcon
         src={contemporaryIcon}
         alt="Contemporary Icon"
+        className="w-6 h-6 text-sienna"
+      />
+    ),
+  },
+  {
+    value: "young adult fiction",
+    label: "Young Adult Fiction",
+    image: (
+      <SvgIcon
+        src={youngAdultIcon}
+        alt="Young Adult Fiction Icon"
         className="w-6 h-6 text-sienna"
       />
     ),

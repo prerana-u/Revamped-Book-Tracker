@@ -11,6 +11,9 @@ const {
   refreshBookCoverHandler,
 } = require("../controllers/bookController");
 const { getBooksByTheme } = require("../services/themeService");
+const {
+  getBookContentWarnings,
+} = require("../controllers/contentWarningController");
 
 router.post("/api/endpoint", createSampleBook);
 router.get("/getbooks", getRandomBooks);
@@ -36,4 +39,6 @@ async function getThemeBooks(req, res) {
 
 // routes/themes.js
 router.get("/getbooksbytheme", getThemeBooks);
+// routes/contentWarnings.js
+router.get("/books/content-warnings", getBookContentWarnings);
 module.exports = router;

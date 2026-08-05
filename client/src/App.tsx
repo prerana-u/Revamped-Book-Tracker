@@ -18,6 +18,7 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup-page" element={<SignupPage />} />
         <Route path="/" element={<HomePage />} />
+        <Route path="/discover" element={<DiscoverPage />} />
         {/* Protected dashboard route - only accessible when authenticated */}
         <Route
           path="/dashboard"
@@ -27,22 +28,8 @@ function App() {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/discover"
-          element={
-            <ProtectedRoute>
-              <DiscoverPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/book-details/:id"
-          element={
-            <ProtectedRoute>
-              <BookDetailPage />
-            </ProtectedRoute>
-          }
-        />
+
+        <Route path="/book-details/:id" element={<BookDetailPage />} />
 
         {/* <Route
             path="/"

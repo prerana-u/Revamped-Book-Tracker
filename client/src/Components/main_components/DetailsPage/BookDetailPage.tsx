@@ -407,6 +407,7 @@ export const BookDetailPage: React.FC = () => {
           title={book.title}
           author={book.author}
           googleId={data?.googleId || id}
+          description={book.descriptionFull}
         />
       </section>
       <MoreLikeThisSection bookId={data?.googleId || id} />

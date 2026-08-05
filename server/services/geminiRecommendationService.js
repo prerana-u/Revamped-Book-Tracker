@@ -279,7 +279,7 @@ async function buildGeminiSingleBookRecommendations(book) {
     ? book.categories.join(", ")
     : String(book.genre || "").trim();
 
-  const prompt = `You are a highly curated book recommendation engine. Based on the single book below, recommend 5 books that are similar in tone, theme, audience, or genre.
+  const prompt = `You are a highly curated book recommendation engine. Based on the single book below, recommend at least 5 books that are similar in tone, theme, audience, or genre.
 
 Return ONLY valid JSON in this exact shape:
 [
@@ -301,7 +301,7 @@ Requirements:
 - Only return a JSON array.
 - Do not include markdown fences.
 - Keep titles and author names realistic and well-formed.
-- Give 5 recommendations.
+- Give minimum 5 recommendations.
 - Keep the suggestions strongly aligned with the seed book's style, themes, and reading mood.`;
 
   let response;

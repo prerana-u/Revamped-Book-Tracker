@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { api } from "../../../lib/axios-instance";
+import ContentWarnings from "./ContentWarnings";
 
 type SummaryDisplayProps = {
   title: string;
   author: string;
   googleId?: string;
+  description?: string;
 };
 
 type SummaryResponse = {
@@ -17,6 +19,7 @@ const SummaryDisplay: React.FC<SummaryDisplayProps> = ({
   title,
   author,
   googleId,
+  description,
 }) => {
   const [summary, setSummary] = useState<string>("");
   const [tone, setTone] = useState<string>("");
@@ -115,7 +118,7 @@ const SummaryDisplay: React.FC<SummaryDisplayProps> = ({
       <div className="grid gap-6 md:grid-cols-[1.35fr_0.85fr]">
         <div className="space-y-5">
           <div>
-            <p className="mb-2 text-[0.72rem] font-medium uppercase tracking-[0.14em] text-sienna">
+            <p className="mb-2 text-[0.95rem] font-medium uppercase tracking-[0.14em] text-sienna">
               AI summary
             </p>
             <p className="font-dm text-[0.98rem] leading-7 text-ink-soft">
@@ -155,6 +158,12 @@ const SummaryDisplay: React.FC<SummaryDisplayProps> = ({
           </div>
         </div>
       </div>
+      <ContentWarnings
+        title={title}
+        author={author}
+        googleId={googleId}
+        description={description}
+      />
     </section>
   );
 };

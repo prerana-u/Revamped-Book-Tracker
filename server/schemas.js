@@ -58,6 +58,21 @@ const BookSchema1 = new mongoose.Schema({
   cachedAt: { type: Date, default: Date.now },
   themes: { type: [String], default: [] },
   normalizedThemes: { type: [String], default: [], index: true },
+  // schemas/CachedBook.js — add this field to the existing schema
+  contentWarnings: {
+    type: [
+      {
+        category: { type: String, required: true }, // e.g. "Violence", "Sexual Content"
+        severity: {
+          type: String,
+          enum: ["mild", "moderate", "severe"],
+          required: true,
+        },
+        description: { type: String, required: true }, // short, spoiler-safe explanation
+      },
+    ],
+    default: undefined, // stays unset until first generated, so you can tell "never generated" apart from "generated, zero warnings"
+  },
 });
 
 BookSchema1.index({ title: 1, authors: 1 });
