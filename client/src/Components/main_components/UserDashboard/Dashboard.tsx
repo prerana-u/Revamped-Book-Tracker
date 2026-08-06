@@ -9,7 +9,8 @@ import axios from "axios";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 import { ShelfDropdown, type ShelfOption } from "../DetailsPage/ShelfDropdown";
-import { RefreshCcw } from "lucide-react";
+import { ReadingProgressModal } from "../DetailsPage/ReadingProgressModal";
+import { ChevronLeft, ChevronRight, RefreshCcw } from "lucide-react";
 
 /* ─── Types ─────────────────────────────────────────────────── */
 interface BookData {
@@ -21,11 +22,22 @@ interface BookData {
   author: string;
 }
 
+interface CurrentlyReadingBook {
+  id: string;
+  bookid: string;
+  title: string;
+  author: string;
+  cover?: string;
+  googleId?: string;
+  current_page?: number;
+  page_count?: number;
+}
+
 interface UserBookData {
   error: string | null;
   message: string;
   data: {
-    currently_reading: any[];
+    currently_reading: CurrentlyReadingBook[];
     want_to_read: any[];
     books_read: any[];
   };
@@ -60,6 +72,7 @@ function Skeleton({ className }: { className?: string }) {
 export default function UserDashboard() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [readingPage, setReadingPage] = useState(0);
 
   const [coverMap, setCoverMap] = useState<
     Record<string, { thumbnail: string; googleId: string }>
@@ -70,6 +83,8 @@ export default function UserDashboard() {
   >("want");
   const [selectedRecommendationShelves, setSelectedRecommendationShelves] =
     useState<Record<string, ShelfOption>>({});
+  const [progressModalBook, setProgressModalBook] =
+    useState<CurrentlyReadingBook | null>(null);
 
   const fetchCurrentlyReading = (): Promise<UserBookData> =>
     api.get(`/user-books/${user.id}`).then((r) => r.data);
@@ -153,11 +168,46 @@ export default function UserDashboard() {
     }));
   };
 
+  const saveReadingProgress = async (
+    book: CurrentlyReadingBook,
+    currentPage: number,
+  ) => {
+    await api.post("/user-books/progress", {
+      bookId: book.id ?? book.bookid,
+      currentPage,
+      pageCount: book.page_count,
+      title: book.title,
+      author: book.author,
+      bookid: book.bookid,
+    });
+  };
+
+  const handleSaveProgress = async (currentPage: number) => {
+    if (!progressModalBook) return;
+
+    const book = progressModalBook;
+
+    await toast.promise(
+      saveReadingProgress(book, currentPage).then(() =>
+        Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["userBookData"] }),
+          queryClient.invalidateQueries({ queryKey: ["userStats"] }),
+        ]),
+      ),
+      {
+        loading: "Saving progress...",
+        success: <b>Progress saved!</b>,
+        error: <b>Could not save your progress.</b>,
+      },
+    );
+  };
+
   useEffect(() => {
     const books = yourBookData.data?.currently_reading || [];
     const missingCoverBooks = books.filter(
       (book: any) => !book.cover || book.cover === "",
     );
+
     if (!missingCoverBooks.length) return;
 
     let isMounted = true;
@@ -322,82 +372,180 @@ export default function UserDashboard() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {yourBookData.data?.currently_reading?.map((book) => (
-                <div
-                  key={book.bookid}
-                  className="group rounded-2xl border border-ink/8 bg-white/70 hover:bg-white hover:shadow-xl hover:shadow-ink/6 transition-all duration-300 p-5 flex gap-4 cursor-pointer"
-                >
-                  {/* Cover */}
-                  <div className="relative shrink-0">
-                    <Link
-                      to={`/book-details/${coverMap[book.bookid]?.googleId || book.googleId}`}
+            (() => {
+              const CARDS_PER_PAGE = 3;
+              const books = yourBookData.data?.currently_reading || [];
+              const pageCount = Math.ceil(books.length / CARDS_PER_PAGE);
+              const clampedPage = Math.min(
+                readingPage,
+                Math.max(pageCount - 1, 0),
+              );
+
+              return (
+                <div className="">
+                  <div className="overflow-hidden">
+                    <div
+                      className="flex transition-transform duration-500 ease-out"
+                      style={{
+                        transform: `translateX(-${clampedPage * 100}%)`,
+                      }}
                     >
-                      <img
-                        src={toSecureCoverUrl(
-                          coverMap[book.bookid]?.thumbnail ?? book.cover,
-                        )}
-                        alt={book.title}
-                        className="w-20 h-28 object-cover rounded-xl shadow-md group-hover:shadow-lg transition-shadow duration-300"
-                      />
-                    </Link>
-                    {/* Progress overlay ring */}
-                    <div className="absolute -bottom-2 -right-2 bg-cream-deep rounded-full p-0.5 shadow">
-                      <div className="relative flex items-center justify-center">
-                        {/* <ProgressRing
-                          progress={book.progress}
-                          size={36}
-                          stroke={3}
-                        />
-                        <span className="absolute text-[0.6rem] font-dm font-semibold text-sienna">
-                          {book.progress}%
-                        </span> */}
-                      </div>
+                      {Array.from({ length: pageCount }).map((_, pageIdx) => (
+                        <div
+                          key={pageIdx}
+                          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 w-full shrink-0"
+                        >
+                          {books
+                            .slice(
+                              pageIdx * CARDS_PER_PAGE,
+                              pageIdx * CARDS_PER_PAGE + CARDS_PER_PAGE,
+                            )
+                            .map((book) => {
+                              const bookPageCount = book.page_count;
+                              const currentPage = book.current_page ?? 0;
+                              const percent =
+                                bookPageCount && bookPageCount > 0
+                                  ? Math.min(
+                                      100,
+                                      Math.round(
+                                        (currentPage / bookPageCount) * 100,
+                                      ),
+                                    )
+                                  : null;
+
+                              return (
+                                <div
+                                  key={book.bookid}
+                                  className="group rounded-2xl border border-ink/8 bg-white/70 hover:bg-white hover:shadow-xl hover:shadow-ink/6 transition-all duration-300 p-5 flex gap-4 cursor-pointer"
+                                >
+                                  {/* Cover */}
+                                  <div className="relative shrink-0">
+                                    <Link
+                                      to={`/book-details/${coverMap[book.bookid]?.googleId || book.googleId}`}
+                                    >
+                                      <img
+                                        src={toSecureCoverUrl(
+                                          coverMap[book.bookid]?.thumbnail ??
+                                            book.cover,
+                                        )}
+                                        alt={book.title}
+                                        className="w-20 h-28 object-cover rounded-xl shadow-md group-hover:shadow-lg transition-shadow duration-300"
+                                      />
+                                    </Link>
+                                    {/* Progress overlay ring */}
+                                    {percent !== null && (
+                                      <div className="absolute -bottom-2 -right-2 bg-cream-deep rounded-full p-0.5 shadow">
+                                        <div className="relative flex items-center justify-center w-9 h-9 rounded-full bg-white">
+                                          <span className="text-[0.62rem] font-dm font-semibold text-sienna">
+                                            {percent}%
+                                          </span>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Info */}
+                                  <div className="flex flex-col justify-between min-w-0 flex-1 py-0.5">
+                                    <div>
+                                      <Link
+                                        to={`/book-details/${coverMap[book.bookid]?.googleId || book.googleId}`}
+                                        className="font-lora font-medium text-[1rem] text-ink leading-snug line-clamp-2 hover:underline"
+                                      >
+                                        {book.title}
+                                      </Link>
+                                      <p className="mt-1 text-[0.78rem] font-dm text-ink/45">
+                                        {book.author}
+                                      </p>
+                                    </div>
+
+                                    <div className="mt-3">
+                                      {/* Progress bar */}
+                                      <div className="w-full h-1 bg-ink/8 rounded-full overflow-hidden">
+                                        <div
+                                          className="h-full bg-sienna rounded-full transition-all duration-700"
+                                          style={{
+                                            width: `${percent ?? 0}%`,
+                                          }}
+                                        />
+                                      </div>
+                                      <div className="flex items-center justify-between mt-1.5">
+                                        <span className="text-[0.72rem] font-dm text-ink/35">
+                                          {bookPageCount
+                                            ? `p. ${currentPage} of ${bookPageCount}`
+                                            : `p. 0 of ${bookPageCount}`}
+                                        </span>
+                                        <button
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setProgressModalBook(book);
+                                          }}
+                                          className="text-[0.72rem] font-dm font-medium text-sienna hover:underline"
+                                        >
+                                          Update Progress →
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      ))}
                     </div>
                   </div>
 
-                  {/* Info */}
-                  <div className="flex flex-col justify-between min-w-0 flex-1 py-0.5">
-                    <div>
-                      <Link
-                        to={`/book-details/${coverMap[book.bookid]?.googleId || book.googleId}`}
-                        className="font-lora font-medium text-[1rem] text-ink leading-snug line-clamp-2 hover:underline"
+                  {/* Carousel controls */}
+                  {pageCount > 1 && (
+                    <div className="flex items-center justify-center gap-4 mt-5">
+                      <button
+                        onClick={() =>
+                          setReadingPage((p) => Math.max(p - 1, 0))
+                        }
+                        disabled={clampedPage === 0}
+                        aria-label="Previous books"
+                        className="w-8 h-8 flex items-center justify-center rounded-full border border-ink/10 text-ink/50 hover:text-ink hover:border-ink/25 disabled:opacity-30 disabled:hover:text-ink/50 disabled:hover:border-ink/10 transition-colors"
                       >
-                        {book.title}
-                      </Link>
-                      <p className="mt-1 text-[0.78rem] font-dm text-ink/45">
-                        {book.author}
-                      </p>
-                    </div>
+                        <ChevronLeft size={16} />
+                      </button>
 
-                    <div className="mt-3">
-                      {/* Progress bar */}
-                      <div className="w-full h-1 bg-ink/8 rounded-full overflow-hidden">
-                        {/* <div
-                          className="h-full bg-sienna rounded-full transition-all duration-700"
-                          style={{ width: `${book.progress}%` }}
-                        /> */}
+                      <div className="flex items-center gap-1.5">
+                        {Array.from({ length: pageCount }).map((_, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setReadingPage(idx)}
+                            aria-label={`Go to page ${idx + 1}`}
+                            className={`h-1.5 rounded-full transition-all duration-300 ${
+                              idx === clampedPage
+                                ? "w-5 bg-sienna"
+                                : "w-1.5 bg-ink/15 hover:bg-ink/25"
+                            }`}
+                          />
+                        ))}
                       </div>
-                      <div className="flex items-center justify-between mt-1.5">
-                        {/* <span className="text-[0.72rem] font-dm text-ink/35">
-                          p. {book.currentPage} of {book.totalPages}
-                        </span> */}
-                        <button className="text-[0.72rem] font-dm font-medium text-sienna hover:underline">
-                          Update Progress →
-                        </button>
-                      </div>
+
+                      <button
+                        onClick={() =>
+                          setReadingPage((p) => Math.min(p + 1, pageCount - 1))
+                        }
+                        disabled={clampedPage === pageCount - 1}
+                        aria-label="Next books"
+                        className="w-8 h-8 flex items-center justify-center rounded-full border border-ink/10 text-ink/50 hover:text-ink hover:border-ink/25 disabled:opacity-30 disabled:hover:text-ink/50 disabled:hover:border-ink/10 transition-colors"
+                      >
+                        <ChevronRight size={16} />
+                      </button>
                     </div>
-                  </div>
+                  )}
                 </div>
-              ))}
-            </div>
+              );
+            })()
           )}
         </section>
 
         {/* ── Tabbed lower sections ────────────────────────────── */}
         <section>
           {/* Tab bar */}
-          <div className="flex items-end gap-0 border-b border-ink/8 mb-8">
+          <div className="flex items-end gap-0 border-b border-ink/8">
             {tabs.map((tab) => (
               <button
                 key={tab.key}
@@ -438,7 +586,7 @@ export default function UserDashboard() {
                 heightClass="h-122"
                 gapClass="gap-x-12"
                 showDots
-                className="mt-8"
+                className="mt-2"
               />
             </div>
           )}
@@ -598,23 +746,6 @@ export default function UserDashboard() {
               )}
             </div>
           )}
-
-          {/* Currently Reading tab (scrollable shelf version) */}
-          {/* {activeTab === "reading" && (
-            <>
-              <BookCarousel
-                books={yourBookData.data?.currently_reading || []}
-                isLoading={readingLoading}
-                isError={false}
-                errorMessage="Failed to load books for this genre."
-                emptyMessage="No books found for this genre."
-                heightClass="h-122"
-                gapClass="gap-x-12"
-                showDots
-                className="mt-8"
-              />
-            </>
-          )} */}
         </section>
 
         {/* ── Favourite genre badge ────────────────────────────── */}
@@ -646,6 +777,17 @@ export default function UserDashboard() {
           </section>
         )}
       </div>
+
+      {progressModalBook && (
+        <ReadingProgressModal
+          title={progressModalBook.title}
+          author={progressModalBook.author}
+          pageCount={progressModalBook.page_count}
+          initialCurrentPage={progressModalBook.current_page ?? 0}
+          onClose={() => setProgressModalBook(null)}
+          onSave={handleSaveProgress}
+        />
+      )}
     </div>
   );
 }

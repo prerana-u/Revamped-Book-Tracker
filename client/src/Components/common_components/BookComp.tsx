@@ -134,7 +134,9 @@ export default function BookComp({
               id="title"
               className="text-[22px] w-50 font-bold text-center lg:mt-16 mt-18 text-sienna cursor-pointer hover:underline"
             >
-              {name}
+              {name.split(" ").length > 5
+                ? name.split(" ").slice(0, 5).join(" ") + "..."
+                : name}
             </Link>
             <p
               id="author"

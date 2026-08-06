@@ -96,6 +96,8 @@ const userBookItemSchema = new mongoose.Schema({
   updated_at: Date,
   author: String,
   rating: Number,
+  current_page: Number,
+  page_count: Number,
 });
 
 const userBookSchema = new mongoose.Schema({

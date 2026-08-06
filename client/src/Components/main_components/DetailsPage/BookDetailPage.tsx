@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ShelfDropdown, type ShelfOption } from "./ShelfDropdown";
+import { ReadingProgressModal } from "./ReadingProgressModal";
 import { StarRating } from "./StarRating";
 import { BookDetailsGrid } from "./BookDetailsGrid";
 import { EditionTable } from "./EditionTable";
@@ -10,7 +11,7 @@ import DOMPurify from "dompurify";
 import { api } from "../../../lib/axios-instance";
 import { useAuth } from "../../../context/useAuth";
 import { useParams } from "react-router-dom";
-import { PenTool, Share } from "lucide-react";
+import { PenTool, Share, BookOpen } from "lucide-react";
 import NavBar from "../../common_components/Navbar";
 import { RatingDisplay } from "./RatingDisplay";
 import toast from "react-hot-toast";
@@ -95,6 +96,7 @@ export const BookDetailPage: React.FC = () => {
 
   const { id } = useParams();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const languageNames = new Intl.DisplayNames(["en"], { type: "language" });
 
   const { data, isLoading, isError } = useQuery<ApiBookResponse>({
@@ -122,9 +124,16 @@ export const BookDetailPage: React.FC = () => {
 
   const [selectedShelfOverride, setSelectedShelfOverride] =
     useState<ShelfOption | null>(null);
+  const [isOnShelfOverride, setIsOnShelfOverride] = useState<boolean | null>(
+    null,
+  );
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [pendingShelf, setPendingShelf] = useState<ShelfOption | null>(null);
   const [bookRating, setBookRating] = useState(0);
+  const [showProgressModal, setShowProgressModal] = useState(false);
+  const [currentPageOverride, setCurrentPageOverride] = useState<number | null>(
+    null,
+  );
 
   const fetchUserShelf = async () => {
     if (!user?.id)
@@ -179,10 +188,25 @@ export const BookDetailPage: React.FC = () => {
 
     if (foundShelf) {
       const [, shelf] = foundShelf;
+
       return shelf;
     }
 
     return "Want to Read";
+  }, [id, userShelfData]);
+
+  const initialIsOnShelf = useMemo<boolean>(() => {
+    if (!id || !userShelfData) {
+      return false;
+    }
+
+    const allShelves = [
+      ...userShelfData.currently_reading,
+      ...userShelfData.want_to_read,
+      ...userShelfData.books_read,
+    ];
+
+    return allShelves.some((item: any) => item.id === id || item.bookid === id);
   }, [id, userShelfData]);
 
   const savedBookRating = useMemo(() => {
@@ -197,8 +221,22 @@ export const BookDetailPage: React.FC = () => {
     return Number(matchingBook?.rating) || 0;
   }, [id, userShelfData]);
 
+  const savedCurrentPage = useMemo(() => {
+    if (!id || !userShelfData) {
+      return 0;
+    }
+
+    const matchingBook = userShelfData.currently_reading.find(
+      (item: any) => item.id === id || item.bookid === id,
+    );
+
+    return Number(matchingBook?.current_page) || 0;
+  }, [id, userShelfData]);
+
   const selectedShelf = selectedShelfOverride ?? initialSelectedShelf;
+  const isOnShelf = isOnShelfOverride ?? initialIsOnShelf;
   const displayedRating = bookRating || savedBookRating;
+  const displayedCurrentPage = currentPageOverride ?? savedCurrentPage;
 
   if (isLoading) {
     return (
@@ -236,10 +274,88 @@ export const BookDetailPage: React.FC = () => {
         author: book.author,
         bookid: data?.googleId || id,
         rating: rating ?? undefined,
+        current_page: displayedCurrentPage,
+        page_count: book.pageCount,
       },
     };
 
     await api.post("/user-shelf", payload);
+  };
+
+  const removeBookFromShelf = async () => {
+    if (!id) throw new Error("Missing book id");
+    await api.delete(`/user-books/${id}`);
+  };
+
+  const handleShelfRemove = () => {
+    // Reset immediately to "Want to Read" — don't fall back to null/initialSelectedShelf,
+    // since that still reads from the (now stale) cached userShelfData.
+    setSelectedShelfOverride("Want to Read");
+    setIsOnShelfOverride(false);
+    setBookRating(0);
+
+    toast.promise(
+      removeBookFromShelf()
+        .then(() => {
+          // Correct the underlying cache so a remount doesn't revert the UI.
+          queryClient.invalidateQueries({ queryKey: ["user-shelf", user?.id] });
+        })
+        .catch((err) => {
+          // Roll back the optimistic reset if the removal actually failed.
+          setSelectedShelfOverride(null);
+          setIsOnShelfOverride(null);
+          throw err;
+        }),
+      {
+        loading: "Removing...",
+        success: <b>Removed from shelf!</b>,
+        error: <b>Could not remove this book.</b>,
+      },
+    );
+  };
+
+  const saveReadingProgress = async (currentPage: number) => {
+    if (!id) throw new Error("Missing book id");
+
+    await api.post("/user-books/progress", {
+      bookId: id,
+      currentPage,
+      pageCount: book.pageCount,
+      title: book.title,
+      author: book.author,
+      bookid: data?.googleId || id,
+    });
+  };
+
+  const handleSaveProgress = async (currentPage: number, pageCount: number) => {
+    setCurrentPageOverride(currentPage);
+    if (currentPage === pageCount) {
+      handleShelfSelect("Read");
+      setSelectedShelfOverride("Read");
+    } else {
+      setSelectedShelfOverride("Currently Reading");
+    }
+    setIsOnShelfOverride(true);
+
+    await toast.promise(
+      saveReadingProgress(currentPage)
+        .then(() => {
+          queryClient.invalidateQueries({
+            queryKey: ["user-shelf", user?.id],
+          });
+        })
+        .catch((err) => {
+          setCurrentPageOverride(null);
+          setSelectedShelfOverride(null);
+          setIsOnShelfOverride(null);
+          throw err;
+        }),
+      {
+        loading: "Saving progress...",
+        success: <b>Progress saved!</b>,
+        error: <b>Could not save your progress.</b>,
+      },
+    );
   };
 
   const handleShelfSelect = (shelf: ShelfOption) => {
@@ -251,6 +367,7 @@ export const BookDetailPage: React.FC = () => {
     }
 
     setSelectedShelfOverride(shelf);
+    setIsOnShelfOverride(true);
     toast.promise(saveBookToShelf(shelf), {
       loading: "Saving...",
       success: <b>Saved to shelf!</b>,
@@ -263,6 +380,7 @@ export const BookDetailPage: React.FC = () => {
 
     setSelectedShelfOverride(pendingShelf);
     setShowRatingModal(false);
+    setIsOnShelfOverride(true);
 
     toast.promise(saveBookToShelf(pendingShelf, bookRating), {
       loading: "Saving...",
@@ -274,6 +392,7 @@ export const BookDetailPage: React.FC = () => {
   const handleRate = (rating: number) => {
     setBookRating(rating);
     setSelectedShelfOverride("Read");
+    setIsOnShelfOverride(true);
 
     toast.promise(saveBookToShelf("Read", rating), {
       loading: "Saving rating...",
@@ -311,7 +430,16 @@ export const BookDetailPage: React.FC = () => {
           <ShelfDropdown
             selected={selectedShelf}
             onSelect={handleShelfSelect}
+            isOnShelf={isOnShelf}
+            onRemove={handleShelfRemove}
           />
+          <button
+            onClick={() => setShowProgressModal(true)}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-border-ink rounded-[10px] text-[0.875rem] font-medium text-ink hover:bg-cream-hover transition-colors"
+          >
+            <BookOpen size={15} />
+            Track Progress
+          </button>
           <StarRating onRate={handleRate} ratingprop={displayedRating} />
           {/* <MetaCard rows={book.metaRows} /> */}
         </aside>
@@ -418,6 +546,17 @@ export const BookDetailPage: React.FC = () => {
           setBookRating={setBookRating}
           bookRating={bookRating}
           handleRatingSave={handleRatingSave}
+        />
+      )}
+
+      {showProgressModal && (
+        <ReadingProgressModal
+          title={book.title}
+          author={book.author}
+          pageCount={book.pageCount}
+          initialCurrentPage={displayedCurrentPage}
+          onClose={() => setShowProgressModal(false)}
+          onSave={handleSaveProgress}
         />
       )}
 

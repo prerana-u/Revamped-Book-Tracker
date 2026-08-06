@@ -1,33 +1,53 @@
-import { ChevronDown, Plus } from "lucide-react";
-import React, { useState, useEffect, useRef } from "react";
+import {
+  BookCheckIcon,
+  BookMarked,
+  BookOpen,
+  ChevronDown,
+  Plus,
+  Trash,
+} from "lucide-react";
+import React, { useState, useEffect, useRef, type ReactNode } from "react";
 
 export type ShelfOption = "Want to Read" | "Currently Reading" | "Read";
 
 interface ShelfItem {
   value: ShelfOption;
-  icon: string;
+  icon: ReactNode;
   subtitle: string;
 }
 
 const SHELF_OPTIONS: ShelfItem[] = [
-  { value: "Want to Read", icon: "ti-bookmark", subtitle: "On your wishlist" },
+  {
+    value: "Want to Read",
+    icon: <BookMarked className="text-ink-muted" />,
+    subtitle: "On your wishlist",
+  },
   {
     value: "Currently Reading",
-    icon: "ti-book-2",
+    icon: <BookOpen className="text-ink-muted" />,
     subtitle: "You're reading this now",
   },
-  { value: "Read", icon: "ti-checks", subtitle: "You've finished this one" },
+  {
+    value: "Read",
+    icon: <BookCheckIcon className="text-ink-muted" />,
+    subtitle: "You've finished this one",
+  },
 ];
 
 interface ShelfDropdownProps {
   onSelect?: (shelf: ShelfOption) => void;
+  onRemove?: () => void;
   selected?: ShelfOption;
+
+  isOnShelf?: boolean;
   compact?: boolean;
 }
 
 export const ShelfDropdown: React.FC<ShelfDropdownProps> = ({
   onSelect,
+  onRemove,
   selected: selectedProp,
+  isOnShelf = false,
   compact = false,
 }) => {
   const [selected, setSelected] = useState<ShelfOption>(
@@ -57,6 +77,11 @@ export const ShelfDropdown: React.FC<ShelfDropdownProps> = ({
     setSelected(value);
     setOpen(false);
     onSelect?.(value);
+  };
+
+  const remove = () => {
+    setOpen(false);
+    onRemove?.();
   };
 
   return (
@@ -99,10 +124,7 @@ export const ShelfDropdown: React.FC<ShelfDropdownProps> = ({
               className={`w-full flex items-center gap-2.5 px-3.5 py-2.75 text-left text-[0.875rem] text-ink border-b border-[rgba(28,26,22,0.06)] last:border-b-0 transition-colors duration-150 font-dm
                 ${selected === opt.value ? "bg-sienna-pale" : "hover:bg-sienna-pale"}`}
             >
-              <i
-                className={`ti ${opt.icon} text-sienna text-base`}
-                aria-hidden="true"
-              />
+              {opt.icon}
               <div className="flex-1">
                 <div className="font-medium">{opt.value}</div>
                 <div className="text-[0.72rem] text-ink-muted mt-0.5">
@@ -117,6 +139,21 @@ export const ShelfDropdown: React.FC<ShelfDropdownProps> = ({
               )}
             </button>
           ))}
+
+          {isOnShelf && (
+            <button
+              onClick={remove}
+              className="w-full flex items-center gap-2.5 px-3.5 py-2.75 text-left text-[0.875rem] text-ink border-t border-[rgba(28,26,22,0.06)] transition-colors duration-150 font-dm hover:bg-red-50"
+            >
+              <Trash className="text-ink-muted" />
+              <div className="flex-1">
+                <div className="font-medium">Remove from Shelf</div>
+                <div className="text-[0.72rem] text-red-400 mt-0.5">
+                  Remove from all shelves
+                </div>
+              </div>
+            </button>
+          )}
         </div>
       )}
     </div>
